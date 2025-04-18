@@ -1,13 +1,117 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite App</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="game.js"></script>
-  </body>
-</html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Shooter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Home Screen -->
+    <div id="homeScreen" class="screen">
+        <div class="home-content">
+            <div class="music-toggle-container">
+                <img id="musicToggleBtn" src="./assets/music_off.png" alt="Toggle Music">
+            </div>
+            <div class="game-title">
+                <img src="./assets/title.png" alt="Space Shooter" class="title-image">
+            </div>
+            <div class="button-container">
+                <button id="startGameBtn" class="start-button">Start Game</button>
+                <button id="showLeaderboardBtn" class="leaderboard-button">Leaderboard</button>
+                <button id="howToPlayBtn" class="how-to-play-button">How to Play</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- How to Play Modal -->
+    <div id="howToPlayModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-body">
+                <h2 style="margin-bottom: 12px;">How to Play</h2>
+                <ul>
+                    <li>Move your ship with mouse/touch</li>
+                    <li>Hold to shoot</li>
+                    <li>Shoot enemies for points</li>
+                    <li>Hit stars for bonus points and trivia questions</li>
+                    <li>60 seconds to get the highest score!</li>
+                </ul>
+            </div>
+            <button id="closeHowToPlayBtn" class="close-modal-btn">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="gameScreen" class="screen" style="display: none;">
+        <div class="game-container">
+            <div class="game-hud">
+                <div class="score-container">
+                    <div class="high-score">High Score: <span id="highScore">0</span></div>
+                    <div class="current-score">Score: <span id="currentScore">0</span></div>
+                </div>
+                <div class="timer-box">
+                    <div class="timer-label">Time:</div>
+                    <div id="timeLeft">60</div>
+                </div>
+            </div>
+            <div class="game-area">
+                <canvas id="gameCanvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Trivia Modal -->
+        <div id="triviaModal" class="modal">
+            <div class="modal-content">
+                <h2>Trivia Question!</h2>
+                <p id="triviaQuestion"></p>
+                <div id="triviaOptions"></div>
+                <div class="trivia-submit-container">
+                    <button id="submitAnswer">Submit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Score Submission Modal -->
+    <div id="saveScoreModal" class="modal" style="display: none;">
+        <div class="modal-content score-modal-content">
+            <h2>High Score!</h2>
+            <p>You made the leaderboard! Enter your nickname:</p>
+            <form id="saveScoreForm">
+                <div class="form-group">
+                    <label for="nickname">Nickname:</label>
+                    <input type="text" id="nickname" name="nickname" required maxlength="20">
+                </div>
+                <p>Your final score: <strong id="finalScoreDisplay">0</strong></p>
+                <div class="modal-buttons">
+                    <button type="submit" class="submit-score-btn">Submit Score</button>
+                    <button type="button" id="cancelScoreBtn" class="cancel-score-btn">Skip</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Supabase Client -->
+    <script src="https://unpkg.com/@supabase/supabase-js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+    <!-- Your Game Scripts -->
+    <script src="trivia.js"></script>
+    <script src="game.js"></script>
+    <!-- Background Music -->
+    <audio id="backgroundMusic" preload="auto" loop>
+        <source src="./assets/background.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <!-- Shooting Sound Effect -->
+    <audio id="laserSound" preload="auto">
+        <source src="./assets/space-laser-38082 (mp3cut.net).mp3" type="audio/mpeg">
+    </audio>
+    <!-- Trivia Sound Effects -->
+    <audio id="correctSound" preload="auto">
+        <source src="./assets/correct.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="wrongSound" preload="auto">
+        <source src="./assets/wrong.mp3" type="audio/mpeg">
+    </audio>
+</body>
+</html> 
