@@ -90,27 +90,10 @@ class SpaceShooter {
         this.soundEnabled = true;
         this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        // Audio handling for mobile
-        this.audioLoaded = false;
-        this.audioTemplate = null;
-        this.audioPool = [];
-        this.currentAudioIndex = 0;
-        
+        // Mobile audio optimization
         if (this.isMobile) {
-            // Create and preload the audio template
-            this.audioTemplate = new Audio('assets/space-laser-38082 (mp3cut.net).mp3');
-            this.audioTemplate.volume = 0.3;
-            
-            // Wait for audio to be loaded
-            this.audioTemplate.addEventListener('canplaythrough', () => {
-                this.audioLoaded = true;
-                console.log('Audio template loaded successfully');
-            });
-            
-            // Create initial pool of 3 audio elements
-            for (let i = 0; i < 3; i++) {
-                this.createAudioElement();
-            }
+            this.lastSoundTime = 0;
+            this.soundCooldown = 100; // Minimum time between sounds in milliseconds
         }
         
         this.player = {
@@ -559,12 +542,18 @@ class SpaceShooter {
             }
 
             if (this.soundEnabled) {
+                const now = Date.now();
                 if (this.isMobile) {
-                    const audio = this.getAudioElement();
-                    if (audio) {
-                        audio.play().catch(error => {
-                            console.warn('Error playing laser sound on mobile:', error);
-                        });
+                    // Only play sound if enough time has passed since last sound
+                    if (now - this.lastSoundTime >= this.soundCooldown) {
+                        if (this.laserSound) {
+                            this.laserSound.currentTime = 0;
+                            this.laserSound.volume = 0.3;
+                            this.laserSound.play().catch(error => {
+                                console.warn('Error playing laser sound on mobile:', error);
+                            });
+                            this.lastSoundTime = now;
+                        }
                     }
                 } else {
                     // Desktop behavior
@@ -1319,32 +1308,6 @@ class SpaceShooter {
         }
         
         console.log('Multi-shot activated');
-    }
-
-    createAudioElement() {
-        if (!this.audioTemplate || !this.audioLoaded) return null;
-        
-        const audio = this.audioTemplate.cloneNode();
-        audio.volume = 0.3;
-        this.audioPool.push(audio);
-        return audio;
-    }
-
-    getAudioElement() {
-        if (!this.audioLoaded) return null;
-        
-        // If we have less than 3 elements in the pool, create a new one
-        if (this.audioPool.length < 3) {
-            this.createAudioElement();
-        }
-        
-        // Get the next audio element
-        const audio = this.audioPool[this.currentAudioIndex];
-        this.currentAudioIndex = (this.currentAudioIndex + 1) % this.audioPool.length;
-        
-        // Reset the audio element
-        audio.currentTime = 0;
-        return audio;
     }
 }
 
