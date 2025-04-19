@@ -83,18 +83,21 @@ class SpaceShooter {
         // Audio elements
         this.backgroundMusic = document.getElementById('backgroundMusic');
         this.musicToggleBtn = document.getElementById('musicToggleBtn');
-        this.laserSound = document.getElementById('laserSound');
         this.powerupSound = document.getElementById('powerupSound');
         this.startGameSound = document.getElementById('startGameSound');
         this.isMusicPlaying = false;
         this.soundEnabled = true;
         this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        // Mobile audio optimization
-        if (this.isMobile) {
-            this.lastSoundTime = 0;
-            this.soundCooldown = 100; // Minimum time between sounds in milliseconds
-        }
+        // Web Audio API setup
+        this.audioContext = null;
+        this.laserBuffer = null;
+        this.bufferPool = [];
+        this.maxPoolSize = 5;
+        this.currentBufferIndex = 0;
+        
+        // Initialize Web Audio API
+        this.initializeAudio();
         
         this.player = {
             x: this.canvas.width / 2,
@@ -140,6 +143,63 @@ class SpaceShooter {
         this.updateLeaderboardDisplay(false);
         this.setupMusic();
         this.setupFlames();
+    }
+
+    initializeAudio() {
+        try {
+            // Create audio context
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AudioContext();
+            
+            // Load laser sound
+            fetch('assets/space-laser-38082 (mp3cut.net).mp3')
+                .then(response => response.arrayBuffer())
+                .then(arrayBuffer => this.audioContext.decodeAudioData(arrayBuffer))
+                .then(audioBuffer => {
+                    this.laserBuffer = audioBuffer;
+                    // Pre-create buffer pool
+                    for (let i = 0; i < this.maxPoolSize; i++) {
+                        this.bufferPool.push(this.createBufferSource());
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading audio:', error);
+                });
+        } catch (error) {
+            console.error('Error initializing audio context:', error);
+        }
+    }
+
+    createBufferSource() {
+        if (!this.laserBuffer) return null;
+        
+        const source = this.audioContext.createBufferSource();
+        source.buffer = this.laserBuffer;
+        
+        // Create gain node for volume control
+        const gainNode = this.audioContext.createGain();
+        gainNode.gain.value = 0.3;
+        
+        // Connect nodes
+        source.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        
+        return source;
+    }
+
+    getBufferSource() {
+        if (!this.laserBuffer) return null;
+        
+        // Get next source from pool
+        const source = this.bufferPool[this.currentBufferIndex];
+        this.currentBufferIndex = (this.currentBufferIndex + 1) % this.maxPoolSize;
+        
+        // If source is still playing, create a new one
+        if (source && source.playbackState === source.PLAYING_STATE) {
+            return this.createBufferSource();
+        }
+        
+        return source;
     }
 
     resizeCanvas() {
@@ -541,28 +601,13 @@ class SpaceShooter {
                 });
             }
 
-            if (this.soundEnabled) {
-                const now = Date.now();
-                if (this.isMobile) {
-                    // Only play sound if enough time has passed since last sound
-                    if (now - this.lastSoundTime >= this.soundCooldown) {
-                        if (this.laserSound) {
-                            this.laserSound.currentTime = 0;
-                            this.laserSound.volume = 0.3;
-                            this.laserSound.play().catch(error => {
-                                console.warn('Error playing laser sound on mobile:', error);
-                            });
-                            this.lastSoundTime = now;
-                        }
-                    }
-                } else {
-                    // Desktop behavior
-                    if (this.laserSound) {
-                        this.laserSound.currentTime = 0;
-                        this.laserSound.volume = 0.3;
-                        this.laserSound.play().catch(error => {
-                            console.warn('Error playing laser sound:', error);
-                        });
+            if (this.soundEnabled && this.audioContext && this.laserBuffer) {
+                const source = this.getBufferSource();
+                if (source) {
+                    try {
+                        source.start(0);
+                    } catch (error) {
+                        console.warn('Error playing laser sound:', error);
                     }
                 }
             }
@@ -1057,17 +1102,12 @@ class SpaceShooter {
     setupMusic() {
         // Set initial state (off)
         this.backgroundMusic = document.getElementById('backgroundMusic');
-        this.laserSound = document.getElementById('laserSound');
         this.powerupSound = document.getElementById('powerupSound');
         
         // Check if audio elements exist
         if (!this.backgroundMusic) {
             console.error('Background music element not found');
             return;
-        }
-
-        if (!this.laserSound) {
-            console.error('Laser sound element not found');
         }
 
         if (!this.powerupSound) {
@@ -1084,9 +1124,6 @@ class SpaceShooter {
 
         // Set initial volume and state
         this.backgroundMusic.volume = 0.3;
-        if (this.laserSound) {
-            this.laserSound.volume = 0.3;
-        }
         if (this.powerupSound) {
             this.powerupSound.volume = 0.4;
         }
