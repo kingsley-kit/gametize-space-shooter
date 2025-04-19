@@ -88,6 +88,20 @@ class SpaceShooter {
         this.startGameSound = document.getElementById('startGameSound');
         this.isMusicPlaying = false;
         this.soundEnabled = true;
+
+        // Create audio pool for mobile devices
+        this.audioPool = [];
+        this.currentAudioIndex = 0;
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        
+        if (this.isMobile) {
+            // Create 5 audio elements for the pool
+            for (let i = 0; i < 5; i++) {
+                const audio = new Audio('assets/space-laser-38082 (mp3cut.net).mp3');
+                audio.volume = 0.3;
+                this.audioPool.push(audio);
+            }
+        }
         
         this.player = {
             x: this.canvas.width / 2,
@@ -535,13 +549,15 @@ class SpaceShooter {
             }
 
             if (this.soundEnabled) {
-                // For mobile devices, create a new audio element each time
-                if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
-                    const laserSound = new Audio('assets/space-laser-38082 (mp3cut.net).mp3');
-                    laserSound.volume = 0.3;
-                    laserSound.play().catch(error => {
+                if (this.isMobile) {
+                    // Use the audio pool for mobile devices
+                    const audio = this.audioPool[this.currentAudioIndex];
+                    audio.currentTime = 0;
+                    audio.play().catch(error => {
                         console.warn('Error playing laser sound on mobile:', error);
                     });
+                    // Move to next audio element in pool
+                    this.currentAudioIndex = (this.currentAudioIndex + 1) % this.audioPool.length;
                 } else {
                     // Desktop behavior
                     if (this.laserSound) {
