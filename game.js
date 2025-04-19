@@ -83,16 +83,11 @@ class SpaceShooter {
         // Audio elements
         this.backgroundMusic = document.getElementById('backgroundMusic');
         this.musicToggleBtn = document.getElementById('musicToggleBtn');
+        this.laserSound = document.getElementById('laserSound');
         this.powerupSound = document.getElementById('powerupSound');
         this.startGameSound = document.getElementById('startGameSound');
         this.isMusicPlaying = false;
         this.soundEnabled = true;
-        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        
-        // Simple audio pool for laser sounds
-        this.laserPool = [];
-        this.currentLaserIndex = 0;
-        this.initializeLaserPool();
         
         this.player = {
             x: this.canvas.width / 2,
@@ -138,22 +133,6 @@ class SpaceShooter {
         this.updateLeaderboardDisplay(false);
         this.setupMusic();
         this.setupFlames();
-    }
-
-    initializeLaserPool() {
-        // Create a pool of 3 audio elements
-        for (let i = 0; i < 3; i++) {
-            const audio = new Audio('assets/space-laser-38082 (mp3cut.net).mp3');
-            audio.volume = 0.3;
-            audio.preload = 'auto';
-            this.laserPool.push(audio);
-        }
-    }
-
-    getNextLaserSound() {
-        const audio = this.laserPool[this.currentLaserIndex];
-        this.currentLaserIndex = (this.currentLaserIndex + 1) % this.laserPool.length;
-        return audio;
     }
 
     resizeCanvas() {
@@ -555,10 +534,10 @@ class SpaceShooter {
                 });
             }
 
-            if (this.soundEnabled) {
-                const audio = this.getNextLaserSound();
-                audio.currentTime = 0;
-                audio.play().catch(error => {
+            if (this.soundEnabled && this.laserSound) {
+                this.laserSound.currentTime = 0;
+                this.laserSound.volume = 0.3;
+                this.laserSound.play().catch(error => {
                     console.warn('Error playing laser sound:', error);
                 });
             }
@@ -1053,12 +1032,17 @@ class SpaceShooter {
     setupMusic() {
         // Set initial state (off)
         this.backgroundMusic = document.getElementById('backgroundMusic');
+        this.laserSound = document.getElementById('laserSound');
         this.powerupSound = document.getElementById('powerupSound');
         
         // Check if audio elements exist
         if (!this.backgroundMusic) {
             console.error('Background music element not found');
             return;
+        }
+
+        if (!this.laserSound) {
+            console.error('Laser sound element not found');
         }
 
         if (!this.powerupSound) {
@@ -1075,6 +1059,9 @@ class SpaceShooter {
 
         // Set initial volume and state
         this.backgroundMusic.volume = 0.3;
+        if (this.laserSound) {
+            this.laserSound.volume = 0.3;
+        }
         if (this.powerupSound) {
             this.powerupSound.volume = 0.4;
         }
