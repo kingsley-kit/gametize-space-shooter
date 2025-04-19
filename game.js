@@ -89,15 +89,10 @@ class SpaceShooter {
         this.soundEnabled = true;
         this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         
-        // Web Audio API setup
-        this.audioContext = null;
-        this.laserBuffer = null;
-        this.bufferPool = [];
-        this.maxPoolSize = 5;
-        this.currentBufferIndex = 0;
-        
-        // Initialize Web Audio API
-        this.initializeAudio();
+        // Simple audio pool for laser sounds
+        this.laserPool = [];
+        this.currentLaserIndex = 0;
+        this.initializeLaserPool();
         
         this.player = {
             x: this.canvas.width / 2,
@@ -145,61 +140,20 @@ class SpaceShooter {
         this.setupFlames();
     }
 
-    initializeAudio() {
-        try {
-            // Create audio context
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.audioContext = new AudioContext();
-            
-            // Load laser sound
-            fetch('assets/space-laser-38082 (mp3cut.net).mp3')
-                .then(response => response.arrayBuffer())
-                .then(arrayBuffer => this.audioContext.decodeAudioData(arrayBuffer))
-                .then(audioBuffer => {
-                    this.laserBuffer = audioBuffer;
-                    // Pre-create buffer pool
-                    for (let i = 0; i < this.maxPoolSize; i++) {
-                        this.bufferPool.push(this.createBufferSource());
-                    }
-                })
-                .catch(error => {
-                    console.error('Error loading audio:', error);
-                });
-        } catch (error) {
-            console.error('Error initializing audio context:', error);
+    initializeLaserPool() {
+        // Create a pool of 3 audio elements
+        for (let i = 0; i < 3; i++) {
+            const audio = new Audio('assets/space-laser-38082 (mp3cut.net).mp3');
+            audio.volume = 0.3;
+            audio.preload = 'auto';
+            this.laserPool.push(audio);
         }
     }
 
-    createBufferSource() {
-        if (!this.laserBuffer) return null;
-        
-        const source = this.audioContext.createBufferSource();
-        source.buffer = this.laserBuffer;
-        
-        // Create gain node for volume control
-        const gainNode = this.audioContext.createGain();
-        gainNode.gain.value = 0.3;
-        
-        // Connect nodes
-        source.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
-        
-        return source;
-    }
-
-    getBufferSource() {
-        if (!this.laserBuffer) return null;
-        
-        // Get next source from pool
-        const source = this.bufferPool[this.currentBufferIndex];
-        this.currentBufferIndex = (this.currentBufferIndex + 1) % this.maxPoolSize;
-        
-        // If source is still playing, create a new one
-        if (source && source.playbackState === source.PLAYING_STATE) {
-            return this.createBufferSource();
-        }
-        
-        return source;
+    getNextLaserSound() {
+        const audio = this.laserPool[this.currentLaserIndex];
+        this.currentLaserIndex = (this.currentLaserIndex + 1) % this.laserPool.length;
+        return audio;
     }
 
     resizeCanvas() {
@@ -601,15 +555,12 @@ class SpaceShooter {
                 });
             }
 
-            if (this.soundEnabled && this.audioContext && this.laserBuffer) {
-                const source = this.getBufferSource();
-                if (source) {
-                    try {
-                        source.start(0);
-                    } catch (error) {
-                        console.warn('Error playing laser sound:', error);
-                    }
-                }
+            if (this.soundEnabled) {
+                const audio = this.getNextLaserSound();
+                audio.currentTime = 0;
+                audio.play().catch(error => {
+                    console.warn('Error playing laser sound:', error);
+                });
             }
 
             this.shootTimeoutId = setTimeout(() => this.shoot(), 200);
