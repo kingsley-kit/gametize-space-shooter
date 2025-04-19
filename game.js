@@ -534,12 +534,24 @@ class SpaceShooter {
                 });
             }
 
-            if (this.soundEnabled && this.laserSound) {
-                this.laserSound.currentTime = 0;
-                this.laserSound.volume = 0.3;
-                this.laserSound.play().catch(error => {
-                    console.warn('Error playing laser sound:', error);
-                });
+            if (this.soundEnabled) {
+                // For mobile devices, create a new audio element each time
+                if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                    const laserSound = new Audio('assets/space-laser-38082 (mp3cut.net).mp3');
+                    laserSound.volume = 0.3;
+                    laserSound.play().catch(error => {
+                        console.warn('Error playing laser sound on mobile:', error);
+                    });
+                } else {
+                    // Desktop behavior
+                    if (this.laserSound) {
+                        this.laserSound.currentTime = 0;
+                        this.laserSound.volume = 0.3;
+                        this.laserSound.play().catch(error => {
+                            console.warn('Error playing laser sound:', error);
+                        });
+                    }
+                }
             }
 
             this.shootTimeoutId = setTimeout(() => this.shoot(), 200);
