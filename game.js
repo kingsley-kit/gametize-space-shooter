@@ -49,17 +49,34 @@ class SpaceShooter {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
+        
+        // Initialize star system first
+        this.backgroundStars = {
+            small: [],
+            medium: [],
+            large: []
+        };
+        
+        // Star configuration
+        this.starConfig = {
+            small: { count: 100, size: 1, speed: 1, color: 'rgba(255, 255, 255, 0.5)' },
+            medium: { count: 50, size: 1.5, speed: 2, color: 'rgba(255, 255, 255, 0.7)' },
+            large: { count: 25, size: 2, speed: 3, color: 'rgba(255, 255, 255, 0.9)' }
+        };
+
+        // Initialize canvas and other properties
         this.resizeCanvas();
         
-        // Image assets (Replace placeholders with your actual file paths)
+        // Image assets
         this.assetPaths = {
             player: './assets/player.png', 
             enemy: './assets/enemy.png',   
             star: './assets/star.png',     
             bullet: './assets/bullet.png', 
-            background: './assets/background.png' 
+            background: './assets/background.png',
+            powerup: './assets/powerup.png'
         };
-        this.assets = {}; // To store loaded Image objects
+        this.assets = {}; 
         this.assetsLoaded = 0;
         this.totalAssets = Object.keys(this.assetPaths).length;
         
@@ -67,32 +84,34 @@ class SpaceShooter {
         this.backgroundMusic = document.getElementById('backgroundMusic');
         this.musicToggleBtn = document.getElementById('musicToggleBtn');
         this.laserSound = document.getElementById('laserSound');
-        this.isMusicPlaying = false; // Track music state
-        this.soundEnabled = true; // Track sound effects state
+        this.powerupSound = document.getElementById('powerupSound');
+        this.startGameSound = document.getElementById('startGameSound');
+        this.isMusicPlaying = false;
+        this.soundEnabled = true;
         
         this.player = {
             x: this.canvas.width / 2,
-            y: this.canvas.height - 50,
-            size: 55, // Increased from 40 to 55
+            y: this.canvas.height - 80,
+            size: 55,
+            flames: []
         };
         
         this.bullets = [];
         this.enemies = [];
         this.stars = [];
         this.score = 0;
-        this.lastScore = 0; // To hold score before submitting to DB
+        this.lastScore = 0;
         this.level = 1;
         this.gameTime = 0;
-        this.timeLeft = 60; // 60 seconds timer
+        this.timeLeft = 60;
         this.isGameOver = false;
-        this.isTriviaActive = false; // New property to track trivia state
+        this.isTriviaActive = false;
         this.hasActiveStar = false;
         this.lastStarSpawnTime = 0;
         this.isShooting = false;
-        this.shootTimeoutId = null; // To manage the shooting timeout
-        this.animationFrameId = null; // To manage the game loop
+        this.shootTimeoutId = null;
+        this.animationFrameId = null;
         
-        // UI Elements for Score Modal
         this.saveScoreModal = document.getElementById('saveScoreModal');
         this.saveScoreForm = document.getElementById('saveScoreForm');
         this.cancelScoreBtn = document.getElementById('cancelScoreBtn');
@@ -100,11 +119,20 @@ class SpaceShooter {
         
         this.triviaSystem = new TriviaSystem();
         
-        this.loadAssets(); // Start loading assets
+        // Initialize starfield after canvas setup
+        this.initializeStarfield();
         
+        // Add after other game state variables
+        this.powerups = [];
+        this.hasMultiShot = false;
+        this.multiShotEndTime = 0;
+        this.lastPowerupTime = 0;
+        
+        this.loadAssets();
         this.setupEventListeners();
-        this.updateLeaderboardDisplay(false); // Update leaderboard on initial load (no await/catch needed now)
-        this.setupMusic(); // Setup initial music state
+        this.updateLeaderboardDisplay(false);
+        this.setupMusic();
+        this.setupFlames();
     }
 
     resizeCanvas() {
@@ -119,10 +147,15 @@ class SpaceShooter {
 
         // Update player position when canvas is resized
         if (this.player) {
-            this.player.y = this.canvas.height - 50; // Keep player near bottom
+            // Keep player higher from bottom on mobile
+            const isMobile = window.innerWidth <= 480;
+            this.player.y = this.canvas.height - (isMobile ? 80 : 50);
             // Ensure player stays within bounds after resize
             this.player.x = Math.min(Math.max(this.player.x, this.player.size/2), this.canvas.width - this.player.size/2);
         }
+
+        // Reinitialize starfield after resize
+        this.initializeStarfield();
 
         console.log(`Canvas resized to ${this.canvas.width}x${this.canvas.height}`);
     }
@@ -201,6 +234,14 @@ class SpaceShooter {
             console.log('Start game button found');
             startGameBtn.addEventListener('click', () => {
                 console.log('Start Game button clicked');
+                // Play start game sound
+                if (this.startGameSound && this.soundEnabled) {
+                    this.startGameSound.currentTime = 0;
+                    this.startGameSound.volume = 0.5;
+                    this.startGameSound.play().catch(error => {
+                        console.warn('Error playing start game sound:', error);
+                    });
+                }
                 document.getElementById('homeScreen').style.display = 'none';
                 document.getElementById('gameScreen').style.display = 'flex';
                 this.startGameIfReady();
@@ -374,9 +415,10 @@ class SpaceShooter {
         this.resizeCanvas();
         console.log(`Canvas dimensions: ${this.canvas.width}x${this.canvas.height}`);
 
-        // Initialize player position
+        // Initialize player position with mobile-friendly offset
+        const isMobile = window.innerWidth <= 480;
         this.player.x = this.canvas.width / 2;
-        this.player.y = this.canvas.height - 50;
+        this.player.y = this.canvas.height - (isMobile ? 80 : 50);
         
         this.updateScore();
         
@@ -434,6 +476,11 @@ class SpaceShooter {
         setTimeout(() => {
             this.promptToSaveScore(); 
         }, 2000); // Show Game Over for 2 seconds before prompt
+
+        // Hide flames
+        if (this.player.flames && this.player.flames.container) {
+            this.player.flames.container.style.display = 'none';
+        }
     }
 
     startShooting() {
@@ -452,42 +499,70 @@ class SpaceShooter {
     }
 
     shoot() {
-        // Clear previous timeout just in case
         if (this.shootTimeoutId) {
             clearTimeout(this.shootTimeoutId);
         }
 
         if (this.isShooting && !this.isGameOver && !this.isTriviaActive) {
-            this.bullets.push({
-                x: this.player.x,
-                y: this.player.y,
-                speed: 5
-            });
+            if (this.hasMultiShot) {
+                // Shoot three bullets at different angles
+                this.bullets.push({
+                    x: this.player.x,
+                    y: this.player.y,
+                    speed: 5,
+                    angle: -0.2 // Left bullet
+                });
+                this.bullets.push({
+                    x: this.player.x,
+                    y: this.player.y,
+                    speed: 5,
+                    angle: 0 // Center bullet
+                });
+                this.bullets.push({
+                    x: this.player.x,
+                    y: this.player.y,
+                    speed: 5,
+                    angle: 0.2 // Right bullet
+                });
+            } else {
+                // Normal single bullet
+                this.bullets.push({
+                    x: this.player.x,
+                    y: this.player.y,
+                    speed: 5,
+                    angle: 0
+                });
+            }
 
-            // Play shooting sound if sound is enabled
             if (this.soundEnabled && this.laserSound) {
-                // Reset the sound to the beginning if it's already playing
                 this.laserSound.currentTime = 0;
-                // Set volume for the laser sound (adjust as needed)
                 this.laserSound.volume = 0.3;
-                // Play the sound
                 this.laserSound.play().catch(error => {
                     console.warn('Error playing laser sound:', error);
                 });
             }
 
-            // Set new timeout
             this.shootTimeoutId = setTimeout(() => this.shoot(), 200);
         }
     }
 
     spawnEnemy() {
         const size = 40;
+        const isDasher = Math.random() < 0.2; // 20% chance for a dasher
+        const isLate = this.timeLeft <= 20; // Last 20 seconds of game
+        
+        const baseSpeed = isLate ? 2 : 1; // Increase base speed in last 20 seconds
+        const levelSpeed = this.level * 0.5;
+        const speed = isDasher ? (baseSpeed + levelSpeed) * 2.5 : baseSpeed + levelSpeed;
+
         this.enemies.push({
             x: Math.random() * (this.canvas.width - size),
             y: -size,
             size: size,
-            speed: 1 + this.level * 0.5
+            speed: speed,
+            isDasher: isDasher,
+            dashTimer: isDasher ? 0 : null,
+            originalX: null
         });
     }
 
@@ -533,8 +608,47 @@ class SpaceShooter {
     update() {
         if (this.isGameOver || this.isTriviaActive) return;
 
+        // Update starfield
+        this.updateStarfield();
+        
         this.gameTime += 16;
-        const levelTime = this.gameTime / 60000;
+
+        // Calculate level based on game time (every 30 seconds)
+        const newLevel = Math.floor(this.gameTime / 30000) + 1;
+        if (newLevel > this.level) {
+            this.level = newLevel;
+            console.log('Level increased to:', this.level);
+        }
+
+        // Update power-up status
+        if (this.hasMultiShot && this.gameTime > this.multiShotEndTime) {
+            this.hasMultiShot = false;
+            console.log('Multi-shot expired');
+        }
+
+        // Spawn power-up every 20-30 seconds
+        if (this.gameTime - this.lastPowerupTime > 20000) {
+            if (Math.random() < 0.02) {
+                this.spawnPowerup();
+                this.lastPowerupTime = this.gameTime;
+            }
+        }
+
+        // Update power-ups
+        this.powerups = this.powerups.filter(powerup => {
+            powerup.y += powerup.speed;
+            
+            const dx = powerup.x - this.player.x;
+            const dy = powerup.y - this.player.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance < (this.player.size / 2 + powerup.size / 2)) {
+                this.activateMultiShot();
+                return false;
+            }
+            
+            return powerup.y < this.canvas.height;
+        });
 
         // Update timer
         if (this.timeLeft > 0) {
@@ -555,26 +669,45 @@ class SpaceShooter {
             }
         }
 
-        // Spawn enemies
-        if (Math.random() < 0.02 * this.level) {
+        // Spawn enemies based on level and time left
+        const spawnRate = this.timeLeft <= 20 ? 0.03 * this.level : 0.02 * this.level;
+        if (Math.random() < spawnRate) {
             this.spawnEnemy();
         }
 
         // Spawn stars every 10-15 seconds if no active star
         if (!this.hasActiveStar && this.gameTime - this.lastStarSpawnTime > 10000) {
-            if (Math.random() < 0.1) { // 10% chance to spawn a star each frame after 10 seconds
+            if (Math.random() < 0.1) {
                 this.spawnStar();
             }
         }
 
-        // Update bullets
+        // Update bullets with angles
         this.bullets = this.bullets.filter(bullet => {
+            bullet.x += Math.sin(bullet.angle) * bullet.speed * 3;
             bullet.y -= bullet.speed;
-            return bullet.y > 0;
+            return bullet.y > 0 && bullet.x > 0 && bullet.x < this.canvas.width;
         });
 
         // Update enemies
         this.enemies = this.enemies.filter(enemy => {
+            // Update dasher movement
+            if (enemy.isDasher) {
+                enemy.dashTimer = (enemy.dashTimer + 1) % 60; // Reset every 60 frames
+                
+                if (enemy.dashTimer === 0) {
+                    // Store original X position when starting a new dash
+                    enemy.originalX = enemy.x;
+                }
+                
+                // Sinusoidal horizontal movement for dashers
+                if (enemy.originalX !== null) {
+                    const dashAmplitude = 100; // Maximum horizontal dash distance
+                    const dashProgress = enemy.dashTimer / 60; // Progress through the dash cycle
+                    enemy.x = enemy.originalX + Math.sin(dashProgress * Math.PI * 2) * dashAmplitude;
+                }
+            }
+            
             enemy.y += enemy.speed;
             
             if (enemy.y > this.canvas.height) {
@@ -587,9 +720,11 @@ class SpaceShooter {
                 const bullet = this.bullets[i];
                 if (this.checkCollision(bullet, enemy)) {
                     this.bullets.splice(i, 1);
-                    this.score += 10;
+                    // Dashers give more points
+                    const points = enemy.isDasher ? 20 : 10;
+                    this.score += points;
                     this.updateScore();
-                    this.createPointPopup(enemy.x, enemy.y, '+10', '#00ff00');
+                    this.createPointPopup(enemy.x, enemy.y, `+${points}`, enemy.isDasher ? '#ff00ff' : '#00ff00');
                     return false;
                 }
             }
@@ -611,7 +746,6 @@ class SpaceShooter {
                 if (this.checkCollision(bullet, star)) {
                     this.bullets.splice(i, 1);
                     
-                    // --- Pause game for trivia --- 
                     this.isTriviaActive = true;
                     console.log('Pausing for trivia...');
                     if (this.animationFrameId) {
@@ -623,7 +757,6 @@ class SpaceShooter {
                         clearTimeout(this.shootTimeoutId);
                         this.shootTimeoutId = null;
                     }
-                    // --------------------------
 
                     this.hasActiveStar = false;
                     this.triviaSystem.showQuestion((isCorrect) => {
@@ -633,11 +766,9 @@ class SpaceShooter {
                             this.updateScore();
                             this.createPointPopup(star.x, star.y, '+50', '#ffff00');
                         }
-                        // --- Resume game after trivia --- 
                         this.isTriviaActive = false;
                         console.log('Resuming game after trivia...');
-                        this.gameLoop(); // Restart the game loop
-                        // -------------------------------
+                        this.gameLoop();
                     });
                     return false;
                 }
@@ -646,9 +777,8 @@ class SpaceShooter {
             return true;
         });
 
-        if (levelTime > this.level) {
-            this.level++;
-        }
+        // Update flames position
+        this.updateFlamesPosition();
     }
 
     checkCollision(obj1, obj2) {
@@ -667,13 +797,12 @@ class SpaceShooter {
         
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-        // Draw Background
-        if (this.assets.background) {
-            this.ctx.drawImage(this.assets.background, 0, 0, this.canvas.width, this.canvas.height);
-        } else {
-            this.ctx.fillStyle = '#000';
-            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-        }
+        // Draw solid background
+        this.ctx.fillStyle = '#000033'; // Dark blue background
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Draw starfield before other elements
+        this.drawStarfield();
 
         // Draw Player
         if (this.assets.player) {
@@ -686,17 +815,34 @@ class SpaceShooter {
             );
         }
 
-        // Draw Bullets
+        // Draw power-ups
+        if (this.assets.powerup) {
+            this.powerups.forEach(powerup => {
+                this.ctx.drawImage(
+                    this.assets.powerup,
+                    powerup.x - powerup.size / 5,
+                    powerup.y - powerup.size / 5,
+                    powerup.size,
+                    powerup.size
+                );
+            });
+        }
+
+        // Draw bullets with rotation based on angle
         if (this.assets.bullet) {
             this.bullets.forEach(bullet => {
-                const bulletSize = 20; // Increased from 10 to 20
+                const bulletSize = 20;
+                this.ctx.save();
+                this.ctx.translate(bullet.x, bullet.y);
+                this.ctx.rotate(bullet.angle);
                 this.ctx.drawImage(
-                    this.assets.bullet, 
-                    bullet.x - bulletSize / 2, 
-                    bullet.y - bulletSize / 2, 
-                    bulletSize, 
+                    this.assets.bullet,
+                    -bulletSize / 2,
+                    -bulletSize / 2,
+                    bulletSize,
                     bulletSize
                 );
+                this.ctx.restore();
             });
         } else { // Fallback shapes
              this.ctx.fillStyle = '#ffff00';
@@ -733,6 +879,14 @@ class SpaceShooter {
                 // Optional: Add glow effect over the image if desired
             });
         } // Add fallback shape drawing if needed
+
+        // Draw power-up status if active
+        if (this.hasMultiShot) {
+            const timeLeft = Math.ceil((this.multiShotEndTime - this.gameTime) / 1000);
+            this.ctx.fillStyle = '#ffff00';
+            this.ctx.font = '20px Arial';
+            this.ctx.fillText(`Multi-shot: ${timeLeft}s`, 10, 80);
+        }
     }
 
     updateScore() {
@@ -741,50 +895,75 @@ class SpaceShooter {
 
     updateLeaderboardDisplay(isModal = false) {
         const listElementId = isModal ? 'leaderboardList' : 'leaderboardListHome';
-        const leaderboardList = document.getElementById(listElementId); 
+        const leaderboardList = document.getElementById(listElementId);
         
-        if (!leaderboardList) { 
+        if (!leaderboardList) {
             if (isModal) console.error(`Element with ID ${listElementId} not found for modal.`);
-            return; 
+            return;
         }
 
-        leaderboardList.innerHTML = '<li>Loading...</li>'; 
-        leaderboardList.style.listStyleType = 'none'; // Hide numbers while loading
+        leaderboardList.innerHTML = '<li><div class="loading">Loading...</div></li>';
 
-        // Call the async function and handle its result with .then()
         this.getLeaderboard().then(scores => {
-            // This code runs once the scores are fetched
-            leaderboardList.innerHTML = ''; // Clear loading/existing list
+            leaderboardList.innerHTML = '';
 
             if (!supabase) {
-                leaderboardList.innerHTML = '<li>Leaderboard disabled (Supabase not configured).</li>';
-                leaderboardList.style.listStyleType = 'none';
+                leaderboardList.innerHTML = '<li><div class="error">Leaderboard disabled (Supabase not configured).</div></li>';
                 return;
             }
 
             if (scores.length === 0) {
-                leaderboardList.innerHTML = '<li>No scores yet! Play a game.</li>';
-                leaderboardList.style.listStyleType = 'none';
+                leaderboardList.innerHTML = '<li><div class="empty">No scores yet! Play a game.</div></li>';
             } else {
-                leaderboardList.style.listStyleType = 'decimal';
-                scores.forEach((entry) => { 
+                scores.forEach((entry, index) => {
                     const li = document.createElement('li');
-                    const date = new Date(entry.created_at).toLocaleDateString();
-                    li.textContent = `${entry.score} - ${entry.nickname} (${date})`; 
+                    li.setAttribute('data-rank', (index + 4)); // For entries after top 3
+                    
+                    // Create score-name container
+                    const scoreNameDiv = document.createElement('div');
+                    scoreNameDiv.className = 'score-name';
+                    
+                    // Add score
+                    const scoreSpan = document.createElement('span');
+                    scoreSpan.className = 'score-value';
+                    scoreSpan.textContent = entry.score;
+                    
+                    // Add name
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'player-name';
+                    nameSpan.textContent = entry.nickname;
+                    
+                    // Add score and name to container
+                    scoreNameDiv.appendChild(scoreSpan);
+                    scoreNameDiv.appendChild(nameSpan);
+                    
+                    // Format date (19 Apr style)
+                    const date = new Date(entry.created_at);
+                    const day = date.getDate();
+                    const month = date.toLocaleString('default', { month: 'short' });
+                    const formattedDate = `${day} ${month}`;
+                    
+                    // Add date
+                    const dateSpan = document.createElement('span');
+                    dateSpan.className = 'date';
+                    dateSpan.textContent = formattedDate;
+                    
+                    // Add all elements to list item
+                    li.appendChild(scoreNameDiv);
+                    li.appendChild(dateSpan);
+                    
                     leaderboardList.appendChild(li);
                 });
             }
 
-            // Update high score display (this is synchronous)
+            // Update high score display
             const highScoreDisplay = document.getElementById('highScore');
             if (highScoreDisplay && scores.length > 0) {
                 highScoreDisplay.textContent = scores[0].score;
             }
-
         }).catch(error => {
             console.error("Failed to update leaderboard display:", error);
-            leaderboardList.innerHTML = '<li>Error loading leaderboard.</li>';
-            leaderboardList.style.listStyleType = 'none';
+            leaderboardList.innerHTML = '<li><div class="error">Error loading leaderboard.</div></li>';
         });
     }
 
@@ -854,6 +1033,7 @@ class SpaceShooter {
         // Set initial state (off)
         this.backgroundMusic = document.getElementById('backgroundMusic');
         this.laserSound = document.getElementById('laserSound');
+        this.powerupSound = document.getElementById('powerupSound');
         
         // Check if audio elements exist
         if (!this.backgroundMusic) {
@@ -863,7 +1043,10 @@ class SpaceShooter {
 
         if (!this.laserSound) {
             console.error('Laser sound element not found');
-            // Don't return here as we can still proceed without the laser sound
+        }
+
+        if (!this.powerupSound) {
+            console.error('Power-up sound element not found');
         }
 
         this.musicToggleBtn = document.getElementById('musicToggleBtn');
@@ -878,6 +1061,9 @@ class SpaceShooter {
         this.backgroundMusic.volume = 0.3;
         if (this.laserSound) {
             this.laserSound.volume = 0.3;
+        }
+        if (this.powerupSound) {
+            this.powerupSound.volume = 0.4;
         }
         this.backgroundMusic.pause();
         this.isMusicPlaying = false;
@@ -929,6 +1115,174 @@ class SpaceShooter {
                 this.updateMusicButtonState();
             }
         }
+    }
+
+    setupFlames() {
+        // Create container for flames
+        const gameArea = document.querySelector('.game-area');
+        if (!gameArea) {
+            console.error('Game area not found');
+            return;
+        }
+
+        // Remove any existing flame container
+        const existingContainer = gameArea.querySelector('.flame-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+
+        const flameContainer = document.createElement('div');
+        flameContainer.className = 'flame-container';
+        flameContainer.style.position = 'absolute';
+        flameContainer.style.width = '100%';
+        flameContainer.style.height = '100%';
+        flameContainer.style.pointerEvents = 'none';
+        flameContainer.style.zIndex = '1'; // Ensure container is visible
+        gameArea.appendChild(flameContainer);
+
+        // Create flames
+        const centerFlame = document.createElement('div');
+        centerFlame.className = 'flame center';
+        flameContainer.appendChild(centerFlame);
+
+        const leftFlame = document.createElement('div');
+        leftFlame.className = 'flame side';
+        flameContainer.appendChild(leftFlame);
+
+        const rightFlame = document.createElement('div');
+        rightFlame.className = 'flame side';
+        flameContainer.appendChild(rightFlame);
+
+        this.player.flames = {
+            container: flameContainer,
+            center: centerFlame,
+            left: leftFlame,
+            right: rightFlame
+        };
+
+        // Log to confirm setup
+        console.log('Flames setup complete', this.player.flames);
+    }
+
+    updateFlamesPosition() {
+        if (!this.player.flames) {
+            console.log('No flames to update');
+            return;
+        }
+
+        // Calculate base size relative to player size
+        const playerSize = this.player.size;
+        const flameBaseSize = playerSize * 0.15; // Flame size relative to player
+
+        // Position flames relative to player's center and size
+        const playerCenterX = this.player.x;
+        const playerBottomY = this.player.y + (playerSize / 2) - 2;
+
+        // Center flame
+        const centerFlame = this.player.flames.center;
+        centerFlame.style.left = `${playerCenterX - (playerSize * 0.10)}px`;
+        centerFlame.style.top = `${playerBottomY}px`;
+        centerFlame.style.width = `${flameBaseSize * 1.25}px`; // Center flame slightly larger
+        centerFlame.style.height = `${flameBaseSize * 2}px`;
+        centerFlame.style.transform = 'translate(-50%, 0)';
+
+        // Left flame
+        const leftFlame = this.player.flames.left;
+        leftFlame.style.left = `${playerCenterX - (playerSize * 0.35)}px`;
+        leftFlame.style.top = `${playerBottomY}px`;
+        leftFlame.style.width = `${flameBaseSize}px`;
+        leftFlame.style.height = `${flameBaseSize * 1.75}px`;
+        leftFlame.style.transform = 'translate(-50%, 0)';
+
+        // Right flame
+        const rightFlame = this.player.flames.right;
+        rightFlame.style.left = `${playerCenterX + (playerSize * 0.20)}px`;
+        rightFlame.style.top = `${playerBottomY}px`;
+        rightFlame.style.width = `${flameBaseSize}px`;
+        rightFlame.style.height = `${flameBaseSize * 1.75}px`;
+        rightFlame.style.transform = 'translate(-50%, 0)';
+    }
+
+    initializeStarfield() {
+        // Clear existing stars
+        this.backgroundStars.small = [];
+        this.backgroundStars.medium = [];
+        this.backgroundStars.large = [];
+
+        // Create stars for each layer
+        Object.keys(this.starConfig).forEach(size => {
+            const config = this.starConfig[size];
+            for (let i = 0; i < config.count; i++) {
+                this.backgroundStars[size].push({
+                    x: Math.random() * this.canvas.width,
+                    y: Math.random() * this.canvas.height,
+                    size: config.size,
+                    speed: config.speed,
+                    color: config.color
+                });
+            }
+        });
+    }
+
+    updateStarfield() {
+        Object.keys(this.backgroundStars).forEach(size => {
+            const stars = this.backgroundStars[size];
+            const config = this.starConfig[size];
+            
+            stars.forEach(star => {
+                // Move star downward
+                star.y += config.speed;
+                
+                // Reset star to top when it goes off screen
+                if (star.y > this.canvas.height) {
+                    star.y = 0;
+                    star.x = Math.random() * this.canvas.width;
+                }
+            });
+        });
+    }
+
+    drawStarfield() {
+        Object.keys(this.backgroundStars).forEach(size => {
+            const stars = this.backgroundStars[size];
+            
+            this.ctx.save();
+            stars.forEach(star => {
+                this.ctx.fillStyle = star.color;
+                this.ctx.beginPath();
+                this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                this.ctx.fill();
+            });
+            this.ctx.restore();
+        });
+    }
+
+    spawnPowerup() {
+        const size = 30;
+        this.powerups.push({
+            x: Math.random() * (this.canvas.width - size),
+            y: -size,
+            size: size,
+            speed: 2,
+            type: 'multishot'
+        });
+        console.log('Power-up spawned');
+    }
+
+    activateMultiShot() {
+        this.hasMultiShot = true;
+        this.multiShotEndTime = this.gameTime + 5000; // 5 seconds duration
+        
+        // Play power-up sound
+        if (this.soundEnabled && this.powerupSound) {
+            this.powerupSound.currentTime = 0;
+            this.powerupSound.volume = 0.4;
+            this.powerupSound.play().catch(error => {
+                console.warn('Error playing power-up sound:', error);
+            });
+        }
+        
+        console.log('Multi-shot activated');
     }
 }
 

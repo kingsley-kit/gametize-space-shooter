@@ -32,13 +32,10 @@ body {
 .home-content {
     text-align: center;
     padding: 2rem;
-    background-color: rgba(0, 0, 0, 0.3);
     border-radius: 10px;
     max-width: 600px;
     width: 90%;
     position: relative;
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
 }
 
 .home-content h1 {
@@ -76,24 +73,26 @@ body {
     margin-top: 2rem;
     align-items: center;
     padding: 0 20px;
+    width: 100%;
 }
 
 .start-button, .leaderboard-button, .how-to-play-button, .close-modal-btn {
-    padding: 0.8rem 2rem;
-    font-size: 1.2rem;
+    padding: 0.8rem 1rem;
+    font-size: 1rem;
     border: none;
     border-radius: 100px;
     cursor: pointer;
     transition: transform 0.2s, filter 0.2s, box-shadow 0.2s;
-    width: 80%;
-    max-width: 280px;
+    width: 90%;
+    max-width: 320px;
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.5px;
     position: relative;
     overflow: hidden;
     box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2), 
                 0 2px 4px rgba(0,0,0,0.2);
+    white-space: nowrap;
 }
 
 /* Start Game Button - Orange gradient */
@@ -156,7 +155,7 @@ body {
 
 /* Game Screen */
 #gameScreen {
-    padding: 40px;
+    padding: 0;
     box-sizing: border-box;
     min-height: 100vh;
     display: flex;
@@ -165,13 +164,14 @@ body {
 }
 
 .game-container {
-    width: 80vw; /* 80% of viewport width */
-    max-width: 540px; /* Reduced from 640px to ensure better fit */
+    width: 95vw;
+    max-width: 540px;
     aspect-ratio: 9/16;
     position: relative;
     background-color: #000;
     margin: 0 auto;
-    max-height: calc(100vh - 80px); /* Ensure container fits within viewport with padding */
+    max-height: 95vh;
+    padding-bottom: env(safe-area-inset-bottom);
 }
 
 .game-area {
@@ -208,36 +208,167 @@ body {
 }
 
 .modal {
-    display: none;
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    z-index: 100;
-    align-items: flex-start;
-    padding-top: 5vh;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
 }
 
 .modal-content {
-    background: linear-gradient(45deg, #2b2b2b, #3d3d3d);
-    margin: 15% auto;
-    padding: 30px;
-    border: 2px solid #ffd500;
-    border-radius: 15px;
-    width: 90%;
-    max-width: 500px;
-    color: white;
-    position: relative;
-    box-shadow: 0 0 20px rgba(255, 213, 0, 0.2);
+    background: rgba(13, 12, 15, 0.95);
+    padding: 1.5rem;
+    border-radius: 20px;
+    text-align: center;
+    color: #fff;
+    min-width: 360px;
+    border: 2px solid #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.2);
 }
 
-/* Container for modal content excluding button */
-.modal-body {
-    flex: 1;
-    margin-bottom: 20px;
-    text-align: left;
+.modal h2 {
+    color: #ffd700;
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    font-weight: bold;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* Crown icon next to title */
+.modal h2::before {
+    content: '👑';
+    font-size: 1.6rem;
+}
+
+#leaderboardListContainer {
+    max-height: 600px;
+    overflow-y: auto;
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+}
+
+#leaderboardList {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#leaderboardList li {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(0, 0, 0, 0.6);
+    border-radius: 8px;
+    font-size: 1.1rem;
+    gap: 10px;
+}
+
+#leaderboardList li:hover {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* Trophy and medal styles */
+#leaderboardList li:nth-child(1)::before {
+    content: "🏆";
+    font-size: 1.2rem;
+    grid-column: 1;
+}
+
+#leaderboardList li:nth-child(2)::before {
+    content: "🥈";
+    font-size: 1.2rem;
+    grid-column: 1;
+}
+
+#leaderboardList li:nth-child(3)::before {
+    content: "🥉";
+    font-size: 1.2rem;
+    grid-column: 1;
+}
+
+#leaderboardList li:nth-child(n+4)::before {
+    content: attr(data-rank) ".";
+    color: #888;
+    grid-column: 1;
+    margin-left: 0;
+}
+
+.score-value {
+    color: #ffffff;
+    font-weight: bold;
+    font-size: 1.2rem;
+    margin-right: 8px;
+}
+
+.player-name {
+    color: #ffffff;
+}
+
+.date {
+    color: #ffffff;
+    font-size: 0.9rem;
+    justify-self: end;
+}
+
+.close-modal-btn {
+    margin-top: 1rem;
+    padding: 0.8rem 2rem;
+    background: rgba(45, 45, 65, 0.8);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    width: 150px;
+}
+
+.close-modal-btn:hover {
+    background: rgba(45, 45, 65, 1);
+}
+
+/* Scrollbar styling */
+#leaderboardListContainer::-webkit-scrollbar {
+    width: 6px;
+}
+
+#leaderboardListContainer::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#leaderboardListContainer::-webkit-scrollbar-thumb {
+    background: rgba(255, 215, 0, 0.3);
+    border-radius: 3px;
+}
+
+#leaderboardListContainer::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 215, 0, 0.5);
+}
+
+/* Loading and error states */
+.loading, .error, .empty {
+    text-align: center;
+    padding: 1rem;
+    color: #888;
+    font-style: italic;
+}
+
+.error {
+    color: #ff5555;
 }
 
 /* Specific styles for Trivia Modal */
@@ -267,10 +398,15 @@ body {
     padding: 20px 0;
 }
 
+#triviaModal .modal-content h2::before {
+    content: none;  /* Remove crown icon */
+}
+
 #triviaModal .modal-content h2 {
-    color: #ffd500;
-    margin-bottom: 15px;
-    font-size: 1.8rem;
+    text-align: center;
+    color: #FFD700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    margin-bottom: 20px;
 }
 
 #triviaQuestion {
@@ -378,14 +514,6 @@ body {
 }
 
 /* High Score Title Styling */
-.modal-content h2 {
-    color: #ffd500;
-    font-size: 2rem;
-    text-align: center;
-    margin-bottom: 25px;
-    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-}
-
 .modal-content p {
     text-align: center;
     font-size: 1.2rem;
@@ -442,7 +570,7 @@ body {
 }
 
 #triviaFeedback .correct {
-    color: #00ff00; /* Green for correct */
+    color: #2bff00; /* Green for correct */
     font-weight: bold;
     font-size: 1.5rem;
 }
@@ -521,34 +649,94 @@ body {
 
 #leaderboardList li span {
     font-weight: bold;
-    color: #00ff00; /* Highlight score */
+    color: #ffffff; /* Highlight score */
     margin-right: 10px;
 }
 
 /* Score Submission Modal Styles */
 .score-modal-content {
-    background: #333; /* Darker background for score modal */
-    border: 1px solid #666;
+    background: linear-gradient(45deg, #2b2b2b, #3d3d3d);
+    border: 2px solid #ffd500;
+    box-shadow: 0 0 20px rgba(255, 213, 0, 0.2);
 }
 
 .score-modal-content h2 {
-    color: #00ff00;
-    margin-bottom: 15px;
+    color: #ffd500;
+    font-size: 2rem;
+    margin-bottom: 20px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.score-modal-content p {
+.form-group {
     margin-bottom: 20px;
 }
 
-.high-score-display {
-    margin: 20px 0;
-    padding: 10px;
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: 10px;
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #ffd500;
 }
 
-.high-score-display h3 {
-    color: #ffff00;
+.form-group input {
+    width: 100%;
+    padding: 10px;
+    border: 2px solid #ffd500;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.3);
+    color: white;
+    font-size: 1rem;
+}
+
+.modal-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 25px;
+}
+
+.submit-score-btn, .cancel-score-btn {
+    padding: 12px 25px;
+    border: none;
+    border-radius: 100px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: transform 0.2s, filter 0.2s, box-shadow 0.2s;
+}
+
+.submit-score-btn {
+    background: linear-gradient(45deg, #ffd000, #ffb300);
+    color: #000;
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2),
+                0 4px 15px rgba(255, 213, 0, 0.4);
+}
+
+.cancel-score-btn {
+    background: linear-gradient(45deg, #666666, #888888);
+    color: white;
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2),
+                0 4px 15px rgba(255, 255, 255, 0.1);
+}
+
+.submit-score-btn:hover, .cancel-score-btn:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.submit-score-btn:hover {
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2),
+                0 6px 25px rgba(255, 213, 0, 0.6);
+}
+
+.cancel-score-btn:hover {
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.2),
+                0 6px 25px rgba(255, 255, 255, 0.2);
+}
+
+.submit-score-btn:active, .cancel-score-btn:active {
+    transform: translateY(1px);
+    filter: brightness(0.95);
 }
 
 /* Existing game styles */
@@ -606,42 +794,52 @@ button:hover {
 /* How to Play Modal Specific Styles */
 #howToPlayModal .modal-content {
     text-align: left;
+    padding: 2rem;
+    min-width: 320px;
+    max-width: 400px;
+}
+
+#howToPlayModal h2 {
+    color: #ffd700;
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-align: left;
+}
+
+/* Remove crown icon for How to Play modal */
+#howToPlayModal h2::before {
+    content: none;
 }
 
 #howToPlayModal ul {
-    list-style-type: disc;
-    padding-left: 25px;
-    margin-bottom: 30px;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem 0;
 }
 
 #howToPlayModal li {
-    margin-bottom: 12px;
-    line-height: 1.4;
-}
-
-.close-modal-btn {
-    padding: 0.8rem 2.5rem;
+    margin-bottom: 1rem;
+    color: #fff;
     font-size: 1.1rem;
-    border: none;
-    border-radius: 50px;
-    cursor: pointer;
-    transition: transform 0.2s, filter 0.2s, box-shadow 0.2s;
-    background: linear-gradient(to right, #4a4a4a, #686868);
-    color: white;
-    font-weight: bold;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    width: 200px; /* Fixed width for consistency */
-    display: block;
-    margin: 0 auto; /* Center horizontally */
-    box-shadow: 0 0 15px rgba(74, 74, 74, 0.5);
+    line-height: 1.4;
+    text-align: left;
+    padding-left: 1.5rem;
+    position: relative;
 }
 
-.close-modal-btn:hover {
-    transform: scale(1.02);
-    filter: brightness(1.1);
-    box-shadow: 0 0 20px rgba(74, 74, 74, 0.7);
-    background: linear-gradient(to right, #585858, #787878);
+#howToPlayModal li::before {
+    content: "•";
+    position: absolute;
+    left: 0.5rem;
+    color: #ffd700;
+}
+
+#howToPlayModal .close-modal-btn {
+    margin: 1rem auto 0;
+    display: block;
 }
 
 /* Specific modal styles */
@@ -724,7 +922,7 @@ button:hover {
     top: 0;
     left: 0;
     width: 100%;
-    padding: 15px;
+    padding: 8px;
     z-index: 10;
     display: flex;
     justify-content: space-between;
@@ -734,30 +932,30 @@ button:hover {
 
 .score-container {
     background: #000;
-    padding: 10px 20px;
+    padding: 6px 15px;
     border-radius: 10px;
     border: 2px solid #FFD700;
-    margin-right: auto; /* Push score to the left */
+    margin-right: auto;
     pointer-events: auto;
 }
 
 .timer-box {
     background: #000;
-    padding: 5px 15px;
+    padding: 3px 12px;
     border-radius: 8px;
     border: 2px solid #FFD700;
     text-align: center;
     min-width: 100px;
-    margin-left: auto; /* Push timer to the right */
+    margin-left: auto;
     pointer-events: auto;
 }
 
 .high-score, .current-score {
     color: #FFD700;
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: bold;
     text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
-    margin: 5px 0;
+    margin: 3px 0;
 }
 
 .high-score span, .current-score span {
@@ -767,14 +965,14 @@ button:hover {
 
 .timer-label {
     color: #FFD700;
-    font-size: 1.2rem;
+    font-size: 1rem;
     font-weight: bold;
     text-transform: uppercase;
 }
 
 #timeLeft {
     color: #fff;
-    font-size: 2rem;
+    font-size: 1.6rem;
     font-weight: bold;
     text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.5);
 }
@@ -796,35 +994,124 @@ button:hover {
     font-family: 'Arial Black', sans-serif;
     font-size: 2rem;
     font-weight: bold;
-    /* color is set dynamically in JS */
     text-shadow: 
         2px 0 #654321, -2px 0 #654321, 0 2px #654321, 0 -2px #654321, 
         2px 2px #654321, -2px -2px #654321, 2px -2px #654321, -2px 2px #654321;
     z-index: 100;
     pointer-events: none;
     animation: pointPopupAnimation 1s ease-out forwards;
-    /* Adjust positioning slightly */
     transform: translateX(-50%);
 }
 
 /* Responsive adjustments */
 @media (max-height: 800px) {
     #gameScreen {
-        padding: 20px;
+        padding: 5px;
     }
     
     .game-container {
-        max-height: calc(100vh - 40px);
+        max-height: calc(100vh - 10px);
     }
 }
 
 @media (max-width: 480px) {
     #gameScreen {
-        padding: 10px;
+        padding: 0;
     }
     
     .game-container {
-        width: 95vw;
-        max-height: calc(100vh - 20px);
+        width: 100vw;
+        max-height: 100vh;
+        margin: 0;
     }
+
+    .game-hud {
+        padding: 8px;
+        padding-top: max(8px, env(safe-area-inset-top));
+    }
+}
+
+@media screen and (max-width: 480px) and (max-height: 900px) {
+    .game-container {
+        margin-bottom: 60px;
+    }
+}
+
+/* Modal animation */
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Media query for iPhone SE and similar small screens */
+@media (max-width: 380px) {
+    .start-button, .leaderboard-button, .how-to-play-button, .close-modal-btn {
+        font-size: 0.9rem;
+        padding: 0.7rem 1rem;
+        width: 95%;
+        max-width: 340px;
+    }
+
+    .button-container {
+        gap: 1rem;
+    }
+}
+
+/* Flame animation */
+@keyframes flameFlicker {
+    0% {
+        transform: scaleY(1);
+        opacity: 0.9;
+    }
+    50% {
+        transform: scaleY(1.2);
+        opacity: 0.7;
+    }
+    100% {
+        transform: scaleY(1);
+        opacity: 0.9;
+    }
+}
+
+.flame-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    background: transparent;
+}
+
+.flame {
+    position: absolute;
+    width: 8px;
+    height: 16px;
+    background: linear-gradient(to bottom, 
+        rgba(255, 255, 255, 0.95) 0%,
+        rgba(255, 107, 0, 0.95) 20%,
+        rgba(255, 149, 0, 0.8) 50%,
+        rgba(255, 149, 0, 0) 100%);
+    border-radius: 40% 40% 20% 20%;
+    animation: flameFlicker 0.15s infinite;
+    transform-origin: center bottom;
+}
+
+.flame.center {
+    height: 20px;
+    width: 10px;
+    opacity: 1;
+}
+
+.flame.side {
+    height: 14px;
+    width: 6px;
+    opacity: 0.7;
 } 

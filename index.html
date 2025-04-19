@@ -33,7 +33,7 @@
                     <li>Move your ship with mouse/touch</li>
                     <li>Hold to shoot</li>
                     <li>Shoot enemies for points</li>
-                    <li>Hit stars for bonus points and trivia questions</li>
+                    <li>Hit stars to answer questions — correct answers earn bonus points!</li>
                     <li>60 seconds to get the highest score!</li>
                 </ul>
             </div>
@@ -98,20 +98,19 @@
     <script src="trivia.js"></script>
     <script src="game.js"></script>
     <!-- Background Music -->
-    <audio id="backgroundMusic" preload="auto" loop>
-        <source src="./assets/background.mp3" type="audio/mpeg">
-        Your browser does not support the audio element.
-    </audio>
+    <audio id="backgroundMusic" src="assets/background.mp3" loop preload="auto"></audio>
     <!-- Shooting Sound Effect -->
-    <audio id="laserSound" preload="auto">
-        <source src="./assets/space-laser-38082 (mp3cut.net).mp3" type="audio/mpeg">
-    </audio>
+    <audio id="laserSound" src="assets/space-laser-38082 (mp3cut.net).mp3" preload="auto"></audio>
     <!-- Trivia Sound Effects -->
     <audio id="correctSound" preload="auto">
-        <source src="./assets/correct.mp3" type="audio/mpeg">
+        <source src="assets/correct.mp3" type="audio/mpeg">
     </audio>
     <audio id="wrongSound" preload="auto">
-        <source src="./assets/wrong.mp3" type="audio/mpeg">
+        <source src="assets/wrong.mp3" type="audio/mpeg">
     </audio>
+    <!-- Power-up Sound Effect -->
+    <audio id="powerupSound" src="assets/powerup.mp3" preload="auto"></audio>
+    <!-- Start Game Sound Effect -->
+    <audio id="startGameSound" src="assets/startgame.mp3" preload="auto"></audio>
 </body>
 </html> 
