@@ -4,26 +4,43 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 // Initialize Supabase client
 let supabase = null;
-try {
-    // Wait for Supabase to be available
-    if (typeof supabaseClient !== 'undefined') {
-        supabase = supabaseClient.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } else if (typeof window.supabase !== 'undefined') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    } else {
-        throw new Error('Supabase client not available');
-    }
-    console.log('Supabase client initialized successfully');
-} catch (error) {
-    console.error('Error initializing Supabase client:', error);
-    supabase = null; // Ensure it's null if initialization failed
+
+function initializeSupabase() {
+    return new Promise((resolve, reject) => {
+        try {
+            // Wait for Supabase to be available
+            if (typeof window.createClient !== 'undefined') {
+                supabase = window.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Supabase client initialized with createClient');
+                resolve(supabase);
+            } else if (typeof window.supabase !== 'undefined') {
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                console.log('Supabase client initialized with window.supabase');
+                resolve(supabase);
+            } else {
+                // Wait a bit and try again
+                setTimeout(() => {
+                    if (typeof window.supabase !== 'undefined') {
+                        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                        console.log('Supabase client initialized after delay');
+                        resolve(supabase);
+                    } else {
+                        reject(new Error('Supabase client not available after delay'));
+                    }
+                }, 1000); // Wait 1 second and try again
+            }
+        } catch (error) {
+            console.error('Error initializing Supabase client:', error);
+            reject(error);
+        }
+    });
 }
 
 // Test the connection
 async function testSupabaseConnection() {
     if (!supabase) {
         console.error('Cannot test connection: Supabase client not initialized');
-        return;
+        return false;
     }
     try {
         const { data, error } = await supabase
@@ -33,17 +50,38 @@ async function testSupabaseConnection() {
             
         if (error) {
             console.error('Supabase connection test failed:', error);
+            return false;
         } else {
             console.log('Supabase connection test successful');
+            return true;
         }
     } catch (error) {
         console.error('Error testing Supabase connection:', error);
+        return false;
     }
 }
 
-// Run the test when initializing
-testSupabaseConnection();
-// ------------------------
+// Initialize the game when the page loads
+window.addEventListener('load', async () => {
+    console.log('Window loaded, initializing Supabase...');
+    try {
+        await initializeSupabase();
+        const connectionSuccessful = await testSupabaseConnection();
+        if (connectionSuccessful) {
+            console.log('Supabase connection verified, initializing game...');
+            window.spaceShooterGame = new SpaceShooter();
+            console.log('Game initialized successfully');
+        } else {
+            console.error('Failed to verify Supabase connection');
+            alert('Warning: Leaderboard functionality may be limited');
+            window.spaceShooterGame = new SpaceShooter();
+        }
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        alert('Warning: Leaderboard functionality may be limited');
+        window.spaceShooterGame = new SpaceShooter();
+    }
+});
 
 class SpaceShooter {
     constructor() {
@@ -1284,20 +1322,4 @@ class SpaceShooter {
         
         console.log('Multi-shot activated');
     }
-}
-
-// Initialize the game when the page loads
-window.addEventListener('load', () => {
-    console.log('Window loaded, checking Supabase...');
-    if (typeof window.supabase !== 'undefined') {
-        console.log('Supabase library loaded, initializing game...');
-        try {
-            window.spaceShooterGame = new SpaceShooter();
-            console.log('Game initialized successfully');
-        } catch (error) {
-            console.error('Error initializing game:', error);
-        }
-    } else {
-        console.error('Supabase library not found! Make sure the script is loaded correctly.');
-    }
-}); 
+} 
