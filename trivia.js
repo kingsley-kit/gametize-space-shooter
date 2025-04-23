@@ -63,6 +63,7 @@ class TriviaSystem {
         this.selectedAnswer = null;
         this.currentQuestion = null;
         this.onAnswerCallback = null;
+        this.lastQuestionIndex = -1; // Track the index of the last question
 
         // Initialize sound effects
         this.correctSound = document.getElementById('correctSound');
@@ -91,7 +92,15 @@ class TriviaSystem {
 
     showQuestion(callback) {
         this.onAnswerCallback = callback;
-        this.currentQuestion = triviaQuestions[Math.floor(Math.random() * triviaQuestions.length)];
+        
+        // Get a random question index that's different from the last one
+        let randomIndex;
+        do {
+            randomIndex = Math.floor(Math.random() * triviaQuestions.length);
+        } while (randomIndex === this.lastQuestionIndex && triviaQuestions.length > 1);
+        
+        this.lastQuestionIndex = randomIndex;
+        this.currentQuestion = triviaQuestions[randomIndex];
         
         this.questionElement.textContent = this.currentQuestion.question;
         this.optionsElement.innerHTML = '';
@@ -121,6 +130,8 @@ class TriviaSystem {
         }
 
         const isCorrect = parseInt(this.selectedAnswer) === this.currentQuestion.correctAnswer;
+        const selectedAnswerText = this.currentQuestion.options[this.selectedAnswer];
+        const correctAnswerText = this.currentQuestion.options[this.currentQuestion.correctAnswer];
         
         // Play the appropriate sound effect
         this.playSound(isCorrect);
@@ -129,12 +140,14 @@ class TriviaSystem {
         this.submitButton.style.display = 'none';
 
         if (isCorrect) {
-            this.feedbackElement.innerHTML = '<p class="correct">Correct!</p>';
+            this.feedbackElement.innerHTML = `
+                <p class="correct">Correct!</p>
+                <p>Your answer: <strong>${selectedAnswerText}</strong></p>`;
         } else {
-            const correctAnswerText = this.currentQuestion.options[this.currentQuestion.correctAnswer];
-            this.feedbackElement.innerHTML = 
-                `<p class="incorrect">Wrong!</p>
-                 <p>The correct answer was: <strong>${correctAnswerText}</strong></p>`;
+            this.feedbackElement.innerHTML = `
+                <p class="incorrect">Wrong!</p>
+                <p>Your answer: <strong>${selectedAnswerText}</strong></p>
+                <p>The correct answer was: <strong>${correctAnswerText}</strong></p>`;
         }
 
         const continueButton = document.createElement('button');
