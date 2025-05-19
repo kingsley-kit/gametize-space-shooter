@@ -573,9 +573,9 @@ class SpaceShooter {
             }
 
             if (this.soundEnabled && this.laserSound) {
-                this.laserSound.currentTime = 0;
+                const laser = this.laserSound.cloneNode();
                 this.laserSound.volume = 0.3;
-                this.laserSound.play().catch(error => {
+                laser.play().catch(error => {
                     console.warn('Error playing laser sound:', error);
                 });
             }
