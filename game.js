@@ -86,7 +86,12 @@ window.addEventListener('load', async () => {
 class SpaceShooter {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
-        this.ctx = this.canvas.getContext('2d');
+        this.ctx = this.canvas.getContext('2d', { alpha: false }); // Disable alpha for better performance
+        
+        // Enable hardware acceleration
+        this.canvas.style.transform = 'translateZ(0)';
+        this.canvas.style.backfaceVisibility = 'hidden';
+        this.canvas.style.perspective = '1000px';
         
         // Initialize star system first
         this.backgroundStars = {
@@ -97,9 +102,9 @@ class SpaceShooter {
         
         // Star configuration
         this.starConfig = {
-            small: { count: 100, size: 1, speed: 1, color: 'rgba(255, 255, 255, 0.5)' },
-            medium: { count: 50, size: 1.5, speed: 2, color: 'rgba(255, 255, 255, 0.7)' },
-            large: { count: 25, size: 2, speed: 3, color: 'rgba(255, 255, 255, 0.9)' }
+            small: { count: 50, size: 1, speed: 1, color: 'rgba(255, 255, 255, 0.5)' },
+            medium: { count: 25, size: 1.5, speed: 2, color: 'rgba(255, 255, 255, 0.7)' },
+            large: { count: 15, size: 2, speed: 3, color: 'rgba(255, 255, 255, 0.9)' }
         };
 
         // Initialize canvas and other properties
@@ -237,27 +242,37 @@ class SpaceShooter {
         
         window.addEventListener('resize', () => this.resizeCanvas());
         
+        // Use passive event listeners for better touch performance
         this.canvas.addEventListener('mousemove', (e) => {
             if (!this.isGameOver && !this.isTriviaActive) {
                 const rect = this.canvas.getBoundingClientRect();
                 this.player.x = e.clientX - rect.left;
             }
-        });
+        }, { passive: true });
 
-        this.canvas.addEventListener('mousedown', () => this.startShooting());
-        this.canvas.addEventListener('mouseup', () => this.stopShooting());
-        this.canvas.addEventListener('mouseleave', () => this.stopShooting());
+        this.canvas.addEventListener('mousedown', () => this.startShooting(), { passive: true });
+        this.canvas.addEventListener('mouseup', () => this.stopShooting(), { passive: true });
+        this.canvas.addEventListener('mouseleave', () => this.stopShooting(), { passive: true });
+
+        // Optimize touch events
+        let touchStartX = 0;
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStartX = e.touches[0].clientX;
+            this.startShooting();
+        }, { passive: false });
 
         this.canvas.addEventListener('touchmove', (e) => {
             if (!this.isGameOver && !this.isTriviaActive) {
                 e.preventDefault();
                 const rect = this.canvas.getBoundingClientRect();
-                this.player.x = e.touches[0].clientX - rect.left;
+                const touchX = e.touches[0].clientX;
+                this.player.x = touchX - rect.left;
             }
-        });
+        }, { passive: false });
 
-        this.canvas.addEventListener('touchstart', () => this.startShooting());
-        this.canvas.addEventListener('touchend', () => this.stopShooting());
+        this.canvas.addEventListener('touchend', () => this.stopShooting(), { passive: true });
+        this.canvas.addEventListener('touchcancel', () => this.stopShooting(), { passive: true });
 
         // Music Toggle Button Listener
         if (this.musicToggleBtn) {
@@ -833,24 +848,80 @@ class SpaceShooter {
         if (this.isTriviaActive) return;
         if (this.assetsLoaded !== this.totalAssets) return;
         
+        // Use a single clearRect call
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Draw solid background
-        this.ctx.fillStyle = '#000033'; // Dark blue background
+        this.ctx.fillStyle = '#000033';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Draw starfield before other elements
         this.drawStarfield();
 
-        // Draw Player
+        // Batch similar drawing operations
+        this.ctx.save();
+        
+        // Draw all bullets
+        if (this.assets.bullet) {
+            this.bullets.forEach(bullet => {
+                const bulletSize = 20;
+                this.ctx.translate(bullet.x, bullet.y);
+                this.ctx.rotate(bullet.angle);
+                this.ctx.drawImage(
+                    this.assets.bullet,
+                    -bulletSize / 2,
+                    -bulletSize / 2,
+                    bulletSize,
+                    bulletSize
+                );
+                this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform instead of save/restore
+            });
+        } else {
+            this.ctx.fillStyle = '#ffff00';
+            this.bullets.forEach(bullet => {
+                this.ctx.beginPath();
+                this.ctx.arc(bullet.x, bullet.y, 10, 0, Math.PI * 2);
+                this.ctx.fill();
+            });
+        }
+        
+        this.ctx.restore();
+
+        // Draw player
         if (this.assets.player) {
             this.ctx.drawImage(
-                this.assets.player, 
+                this.assets.player,
                 this.player.x - this.player.size / 2,
-                this.player.y - this.player.size / 2, 
-                this.player.size, 
+                this.player.y - this.player.size / 2,
+                this.player.size,
                 this.player.size
             );
+        }
+
+        // Draw enemies
+        if (this.assets.enemy) {
+            this.enemies.forEach(enemy => {
+                this.ctx.drawImage(
+                    this.assets.enemy,
+                    enemy.x - enemy.size / 2,
+                    enemy.y - enemy.size / 2,
+                    enemy.size,
+                    enemy.size
+                );
+            });
+        }
+
+        // Draw stars
+        if (this.assets.star) {
+            this.stars.forEach(star => {
+                this.ctx.drawImage(
+                    this.assets.star,
+                    star.x - star.size / 2,
+                    star.y - star.size / 2,
+                    star.size,
+                    star.size
+                );
+            });
         }
 
         // Draw power-ups
@@ -865,58 +936,6 @@ class SpaceShooter {
                 );
             });
         }
-
-        // Draw bullets with rotation based on angle
-        if (this.assets.bullet) {
-            this.bullets.forEach(bullet => {
-                const bulletSize = 20;
-                this.ctx.save();
-                this.ctx.translate(bullet.x, bullet.y);
-                this.ctx.rotate(bullet.angle);
-                this.ctx.drawImage(
-                    this.assets.bullet,
-                    -bulletSize / 2,
-                    -bulletSize / 2,
-                    bulletSize,
-                    bulletSize
-                );
-                this.ctx.restore();
-            });
-        } else { // Fallback shapes
-             this.ctx.fillStyle = '#ffff00';
-             this.bullets.forEach(bullet => {
-                 this.ctx.beginPath();
-                 this.ctx.arc(bullet.x, bullet.y, 10, 0, Math.PI * 2); // Increased from 5 to 10
-                 this.ctx.fill();
-             });
-        }
-
-        // Draw Enemies
-        if (this.assets.enemy) {
-            this.enemies.forEach(enemy => {
-                this.ctx.drawImage(
-                    this.assets.enemy, 
-                    enemy.x - enemy.size / 2, 
-                    enemy.y - enemy.size / 2, 
-                    enemy.size, 
-                    enemy.size
-                );
-            });
-        } // Add fallback shape drawing if needed
-
-        // Draw Stars
-        if (this.assets.star) {
-             this.stars.forEach(star => {
-                this.ctx.drawImage(
-                    this.assets.star, 
-                    star.x - star.size / 2, 
-                    star.y - star.size / 2, 
-                    star.size, 
-                    star.size
-                );
-                // Optional: Add glow effect over the image if desired
-            });
-        } // Add fallback shape drawing if needed
 
         // Draw power-up status if active
         if (this.hasMultiShot) {
@@ -1031,13 +1050,24 @@ class SpaceShooter {
     }
 
     gameLoop() {
-        if (this.isGameOver || this.isTriviaActive) { // Check trivia state
-             console.log(`Game loop stopped: isGameOver=${this.isGameOver}, isTriviaActive=${this.isTriviaActive}`);
-             return;
+        if (this.isGameOver || this.isTriviaActive) {
+            console.log(`Game loop stopped: isGameOver=${this.isGameOver}, isTriviaActive=${this.isTriviaActive}`);
+            return;
         }
 
+        // Use requestAnimationFrame timestamp for more accurate timing
+        const now = performance.now();
+        const deltaTime = now - (this.lastFrameTime || now);
+        this.lastFrameTime = now;
+
+        // Update game state
         this.update();
-        this.draw();
+        
+        // Only draw if enough time has passed (target 60 FPS)
+        if (deltaTime >= 16) { // 1000ms / 60fps ≈ 16.67ms
+            this.draw();
+        }
+
         this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
     }
 
