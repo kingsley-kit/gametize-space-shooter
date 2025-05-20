@@ -184,15 +184,15 @@ class SpaceShooter {
         const containerWidth = container.offsetWidth;
         const containerHeight = container.offsetHeight;
 
-        // Set canvas size to match container while maintaining 4:5 aspect ratio
+        // Make canvas fill the container exactly
         this.canvas.width = containerWidth;
         this.canvas.height = containerHeight;
 
         // Update player position when canvas is resized
         if (this.player) {
-            // Keep player higher from bottom on mobile
+            // Move player higher from bottom on mobile
             const isMobile = window.innerWidth <= 480;
-            this.player.y = this.canvas.height - (isMobile ? 80 : 50);
+            this.player.y = this.canvas.height - (isMobile ? 120 : 80);
             // Ensure player stays within bounds after resize
             this.player.x = Math.min(Math.max(this.player.x, this.player.size/2), this.canvas.width - this.player.size/2);
         }
@@ -471,7 +471,7 @@ class SpaceShooter {
         // Initialize player position with mobile-friendly offset
         const isMobile = window.innerWidth <= 480;
         this.player.x = this.canvas.width / 2;
-        this.player.y = this.canvas.height - (isMobile ? 80 : 50);
+        this.player.y = this.canvas.height - (isMobile ? 120 : 80);
         
         this.updateScore();
         
