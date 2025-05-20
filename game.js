@@ -102,9 +102,9 @@ class SpaceShooter {
         
         // Star configuration
         this.starConfig = {
-            small: { count: 50, size: 1, speed: 1, color: 'rgba(255, 255, 255, 0.5)' },
-            medium: { count: 25, size: 1.5, speed: 2, color: 'rgba(255, 255, 255, 0.7)' },
-            large: { count: 15, size: 2, speed: 3, color: 'rgba(255, 255, 255, 0.9)' }
+            small: { count: 20, size: 1, speed: 1, color: 'rgba(255, 255, 255, 0.5)' },
+            medium: { count: 10, size: 1.5, speed: 2, color: 'rgba(255, 255, 255, 0.7)' },
+            large: { count: 5, size: 2, speed: 3, color: 'rgba(255, 255, 255, 0.9)' }
         };
 
         // Initialize canvas and other properties
@@ -135,8 +135,7 @@ class SpaceShooter {
         this.player = {
             x: this.canvas.width / 2,
             y: this.canvas.height - 80,
-            size: 55,
-            flames: []
+            size: 55
         };
         
         this.bullets = [];
@@ -175,7 +174,6 @@ class SpaceShooter {
         this.setupEventListeners();
         this.updateLeaderboardDisplay(false);
         this.setupMusic();
-        this.setupFlames();
     }
 
     resizeCanvas() {
@@ -529,11 +527,6 @@ class SpaceShooter {
         setTimeout(() => {
             this.promptToSaveScore(); 
         }, 2000); // Show Game Over for 2 seconds before prompt
-
-        // Hide flames
-        if (this.player.flames && this.player.flames.container) {
-            this.player.flames.container.style.display = 'none';
-        }
     }
 
     startShooting() {
@@ -829,9 +822,6 @@ class SpaceShooter {
             
             return true;
         });
-
-        // Update flames position
-        this.updateFlamesPosition();
     }
 
     checkCollision(obj1, obj2) {
@@ -1183,92 +1173,6 @@ class SpaceShooter {
                 this.updateMusicButtonState();
             }
         }
-    }
-
-    setupFlames() {
-        // Create container for flames
-        const gameArea = document.querySelector('.game-area');
-        if (!gameArea) {
-            console.error('Game area not found');
-            return;
-        }
-
-        // Remove any existing flame container
-        const existingContainer = gameArea.querySelector('.flame-container');
-        if (existingContainer) {
-            existingContainer.remove();
-        }
-
-        const flameContainer = document.createElement('div');
-        flameContainer.className = 'flame-container';
-        flameContainer.style.position = 'absolute';
-        flameContainer.style.width = '100%';
-        flameContainer.style.height = '100%';
-        flameContainer.style.pointerEvents = 'none';
-        flameContainer.style.zIndex = '1'; // Ensure container is visible
-        gameArea.appendChild(flameContainer);
-
-        // Create flames
-        const centerFlame = document.createElement('div');
-        centerFlame.className = 'flame center';
-        flameContainer.appendChild(centerFlame);
-
-        const leftFlame = document.createElement('div');
-        leftFlame.className = 'flame side';
-        flameContainer.appendChild(leftFlame);
-
-        const rightFlame = document.createElement('div');
-        rightFlame.className = 'flame side';
-        flameContainer.appendChild(rightFlame);
-
-        this.player.flames = {
-            container: flameContainer,
-            center: centerFlame,
-            left: leftFlame,
-            right: rightFlame
-        };
-
-        // Log to confirm setup
-        console.log('Flames setup complete', this.player.flames);
-    }
-
-    updateFlamesPosition() {
-        if (!this.player.flames) {
-            console.log('No flames to update');
-            return;
-        }
-
-        // Calculate base size relative to player size
-        const playerSize = this.player.size;
-        const flameBaseSize = playerSize * 0.15; // Flame size relative to player
-
-        // Position flames relative to player's center and size
-        const playerCenterX = this.player.x;
-        const playerBottomY = this.player.y + (playerSize / 2) - 2;
-
-        // Center flame
-        const centerFlame = this.player.flames.center;
-        centerFlame.style.left = `${playerCenterX - (playerSize * 0.10)}px`;
-        centerFlame.style.top = `${playerBottomY}px`;
-        centerFlame.style.width = `${flameBaseSize * 1.25}px`; // Center flame slightly larger
-        centerFlame.style.height = `${flameBaseSize * 2}px`;
-        centerFlame.style.transform = 'translate(-50%, 0)';
-
-        // Left flame
-        const leftFlame = this.player.flames.left;
-        leftFlame.style.left = `${playerCenterX - (playerSize * 0.35)}px`;
-        leftFlame.style.top = `${playerBottomY}px`;
-        leftFlame.style.width = `${flameBaseSize}px`;
-        leftFlame.style.height = `${flameBaseSize * 1.75}px`;
-        leftFlame.style.transform = 'translate(-50%, 0)';
-
-        // Right flame
-        const rightFlame = this.player.flames.right;
-        rightFlame.style.left = `${playerCenterX + (playerSize * 0.20)}px`;
-        rightFlame.style.top = `${playerBottomY}px`;
-        rightFlame.style.width = `${flameBaseSize}px`;
-        rightFlame.style.height = `${flameBaseSize * 1.75}px`;
-        rightFlame.style.transform = 'translate(-50%, 0)';
     }
 
     initializeStarfield() {
