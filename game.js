@@ -112,12 +112,12 @@ class SpaceShooter {
         
         // Image assets
         this.assetPaths = {
-            player: './assets/player.png', 
-            enemy: './assets/enemy.png',   
-            star: './assets/star.png',     
-            bullet: './assets/bullet.png', 
-            background: './assets/background.png',
-            powerup: './assets/powerup.png'
+            player: './assets/player.webp', 
+            enemy: './assets/enemy.webp',   
+            star: './assets/star.webp',     
+            bullet: './assets/bullet.webp', 
+            background: './assets/background.webp',
+            powerup: './assets/powerup.webp'
         };
         this.assets = {}; 
         this.assetsLoaded = 0;
