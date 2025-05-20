@@ -170,6 +170,8 @@ class SpaceShooter {
         this.multiShotEndTime = 0;
         this.lastPowerupTime = 0;
         
+        this.activePopups = [];
+        
         this.loadAssets();
         this.setupEventListeners();
         this.updateLeaderboardDisplay(false);
@@ -627,27 +629,14 @@ class SpaceShooter {
     }
 
     createPointPopup(x, y, points, color = '#FFD700') {
-        const gameArea = document.querySelector('.game-area');
-        if (!gameArea) return;
-
-        const popup = document.createElement('div');
-        popup.className = 'point-popup';
-        popup.textContent = `+${points}`;
-        popup.style.left = `${x}px`;
-        popup.style.top = `${y}px`;
-
-        // Use gold color for +50 from stars, green for +10 from enemies
-        if (points === 50) {
-            popup.style.color = '#FFD700'; // Gold for star bonus
-        } else {
-            popup.style.color = '#00ff00'; // Green for enemy score
-        }
-
-        gameArea.appendChild(popup);
-
-        // Remove the element after the animation finishes
-        popup.addEventListener('animationend', () => {
-            popup.remove();
+        // Add a popup object to the activePopups array
+        this.activePopups.push({
+            x,
+            y,
+            points,
+            color,
+            startTime: performance.now(),
+            duration: 1000 // ms
         });
     }
 
@@ -822,6 +811,10 @@ class SpaceShooter {
             
             return true;
         });
+
+        // Update popups: remove expired ones
+        const now = performance.now();
+        this.activePopups = this.activePopups.filter(popup => (now - popup.startTime) < popup.duration);
     }
 
     checkCollision(obj1, obj2) {
@@ -934,6 +927,25 @@ class SpaceShooter {
             this.ctx.font = '20px Arial';
             this.ctx.fillText(`Multi-shot: ${timeLeft}s`, 10, 80);
         }
+
+        // Draw canvas-based point popups
+        const now = performance.now();
+        this.activePopups.forEach(popup => {
+            const elapsed = now - popup.startTime;
+            const progress = Math.min(elapsed / popup.duration, 1);
+            const y = popup.y - progress * 60; // Move up
+            const alpha = 1 - progress; // Fade out
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
+            this.ctx.font = 'bold 32px Arial Black, Arial, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.lineWidth = 4;
+            this.ctx.strokeStyle = '#654321';
+            this.ctx.strokeText(`+${popup.points}`, popup.x, y);
+            this.ctx.fillStyle = popup.color || '#FFD700';
+            this.ctx.fillText(`+${popup.points}`, popup.x, y);
+            this.ctx.restore();
+        });
     }
 
     updateScore() {
