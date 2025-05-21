@@ -132,6 +132,11 @@ class SpaceShooter {
         this.isMusicPlaying = false;
         this.soundEnabled = true;
         
+        // Initialize audio pool
+        this.laserSoundPool = [];
+        this.currentLaserSoundIndex = 0;
+        this.initializeLaserSoundPool();
+        
         this.player = {
             x: this.canvas.width / 2,
             y: this.canvas.height - 80,
@@ -582,13 +587,8 @@ class SpaceShooter {
                 });
             }
 
-            if (this.soundEnabled && this.laserSound) {
-                const laser = this.laserSound.cloneNode();
-                this.laserSound.volume = 0.3;
-                laser.play().catch(error => {
-                    console.warn('Error playing laser sound:', error);
-                });
-            }
+            // Play laser sound using the pool
+            this.playLaserSound();
 
             this.shootTimeoutId = setTimeout(() => this.shoot(), 200);
         }
@@ -844,12 +844,22 @@ class SpaceShooter {
         // Batch similar drawing operations
         this.ctx.save();
         
-        // Draw all bullets
+        // Draw all bullets with batched transformations
         if (this.assets.bullet) {
+            const bulletSize = 20;
             this.bullets.forEach(bullet => {
-                const bulletSize = 20;
-                this.ctx.translate(bullet.x, bullet.y);
-                this.ctx.rotate(bullet.angle);
+                // Calculate bullet position and rotation
+                const cos = Math.cos(bullet.angle);
+                const sin = Math.sin(bullet.angle);
+                
+                // Set transform matrix for this bullet
+                this.ctx.setTransform(
+                    cos, sin,
+                    -sin, cos,
+                    bullet.x, bullet.y
+                );
+                
+                // Draw the bullet
                 this.ctx.drawImage(
                     this.assets.bullet,
                     -bulletSize / 2,
@@ -857,8 +867,9 @@ class SpaceShooter {
                     bulletSize,
                     bulletSize
                 );
-                this.ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset transform instead of save/restore
             });
+            // Reset transform once after all bullets
+            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         } else {
             this.ctx.fillStyle = '#ffff00';
             this.bullets.forEach(bullet => {
@@ -1267,5 +1278,33 @@ class SpaceShooter {
         }
         
         console.log('Multi-shot activated');
+    }
+
+    initializeLaserSoundPool() {
+        // Create a pool of 8 pre-cloned laser sounds
+        const poolSize = 8;
+        if (this.laserSound) {
+            for (let i = 0; i < poolSize; i++) {
+                const sound = this.laserSound.cloneNode();
+                sound.volume = 0.3;
+                this.laserSoundPool.push(sound);
+            }
+        }
+    }
+
+    playLaserSound() {
+        if (!this.soundEnabled || !this.laserSoundPool.length) return;
+
+        // Get next sound from pool
+        const sound = this.laserSoundPool[this.currentLaserSoundIndex];
+        
+        // Reset and play
+        sound.currentTime = 0;
+        sound.play().catch(error => {
+            console.warn('Error playing laser sound:', error);
+        });
+
+        // Move to next sound in pool
+        this.currentLaserSoundIndex = (this.currentLaserSoundIndex + 1) % this.laserSoundPool.length;
     }
 } 
