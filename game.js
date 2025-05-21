@@ -93,6 +93,9 @@ class SpaceShooter {
         this.canvas.style.backfaceVisibility = 'hidden';
         this.canvas.style.perspective = '1000px';
         
+        // Detect mobile device
+        this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 480;
+        
         // Initialize star system first
         this.backgroundStars = {
             small: [],
@@ -109,6 +112,11 @@ class SpaceShooter {
 
         // Initialize canvas and other properties
         this.resizeCanvas();
+        
+        // Add resize throttling
+        this.resizeTimeout = null;
+        this.lastResizeTime = 0;
+        this.resizeThrottleDelay = 250; // 250ms throttle delay
         
         // Image assets
         this.assetPaths = {
@@ -189,6 +197,11 @@ class SpaceShooter {
         const containerWidth = container.offsetWidth;
         const containerHeight = container.offsetHeight;
 
+        // Only resize if dimensions actually changed
+        if (this.canvas.width === containerWidth && this.canvas.height === containerHeight) {
+            return;
+        }
+
         // Make canvas fill the container exactly
         this.canvas.width = containerWidth;
         this.canvas.height = containerHeight;
@@ -245,7 +258,8 @@ class SpaceShooter {
     setupEventListeners() {
         console.log('Setting up event listeners...');
         
-        window.addEventListener('resize', () => this.resizeCanvas());
+        // Replace direct resize listener with throttled version
+        window.addEventListener('resize', () => this.handleResize(), { passive: true });
         
         // Use passive event listeners for better touch performance
         this.canvas.addEventListener('mousemove', (e) => {
@@ -416,6 +430,29 @@ class SpaceShooter {
         });
     }
 
+    handleResize() {
+        const now = performance.now();
+        
+        // Clear any pending resize
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+        
+        // Throttle resize operations
+        if (now - this.lastResizeTime < this.resizeThrottleDelay) {
+            // Schedule resize for later
+            this.resizeTimeout = setTimeout(() => {
+                this.resizeCanvas();
+                this.lastResizeTime = performance.now();
+            }, this.resizeThrottleDelay);
+            return;
+        }
+        
+        // Perform resize immediately if enough time has passed
+        this.resizeCanvas();
+        this.lastResizeTime = now;
+    }
+
     showLeaderboardModal() {
         // Remove existing modal if it exists
         const existingModal = document.getElementById('leaderboardModal');
@@ -519,13 +556,22 @@ class SpaceShooter {
         this.ctx.fillStyle = '#ff0000'; // Red Game Over text
         this.ctx.font = 'bold 60px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.shadowColor = '#000';
-        this.ctx.shadowBlur = 10;
+        
+        if (!this.isMobile) {
+            // Only apply text effects on non-mobile devices
+            this.ctx.shadowColor = '#000';
+            this.ctx.shadowBlur = 10;
+        }
+        
         this.ctx.fillText('GAME OVER', this.canvas.width / 2, this.canvas.height / 2 - 40);
         
         this.ctx.fillStyle = '#ffffff'; // White score text
         this.ctx.font = 'bold 30px Arial';
-        this.ctx.shadowBlur = 5;
+        
+        if (!this.isMobile) {
+            this.ctx.shadowBlur = 5;
+        }
+        
         this.ctx.fillText(`Final Score: ${this.score}`, this.canvas.width / 2, this.canvas.height / 2 + 30);
         this.ctx.restore();
         // ------------------------------
@@ -923,8 +969,8 @@ class SpaceShooter {
             this.powerups.forEach(powerup => {
                 this.ctx.drawImage(
                     this.assets.powerup,
-                    powerup.x - powerup.size / 5,
-                    powerup.y - powerup.size / 5,
+                    powerup.x - powerup.size / 7,
+                    powerup.y - powerup.size / 7,
                     powerup.size,
                     powerup.size
                 );
@@ -935,8 +981,8 @@ class SpaceShooter {
         if (this.hasMultiShot) {
             const timeLeft = Math.ceil((this.multiShotEndTime - this.gameTime) / 1000);
             this.ctx.fillStyle = '#ffff00';
-            this.ctx.font = '20px Arial';
-            this.ctx.fillText(`Multi-shot: ${timeLeft}s`, 10, 80);
+            this.ctx.font = 'bold 20px Arial';
+            this.ctx.fillText(`Multi-shot: ${timeLeft}s`, 10, 120);
         }
 
         // Draw canvas-based point popups
@@ -950,9 +996,14 @@ class SpaceShooter {
             this.ctx.globalAlpha = alpha;
             this.ctx.font = 'bold 32px Arial Black, Arial, sans-serif';
             this.ctx.textAlign = 'center';
-            this.ctx.lineWidth = 4;
-            this.ctx.strokeStyle = '#654321';
-            this.ctx.strokeText(`+${popup.points}`, popup.x, y);
+            
+            if (!this.isMobile) {
+                // Only apply text effects on non-mobile devices
+                this.ctx.lineWidth = 4;
+                this.ctx.strokeStyle = '#654321';
+                this.ctx.strokeText(`+${popup.points}`, popup.x, y);
+            }
+            
             this.ctx.fillStyle = popup.color || '#FFD700';
             this.ctx.fillText(`+${popup.points}`, popup.x, y);
             this.ctx.restore();
@@ -1253,7 +1304,7 @@ class SpaceShooter {
     }
 
     spawnPowerup() {
-        const size = 30;
+        const size = 35;
         this.powerups.push({
             x: Math.random() * (this.canvas.width - size),
             y: -size,
