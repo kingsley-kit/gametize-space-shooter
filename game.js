@@ -131,6 +131,10 @@ class SpaceShooter {
         this.assetsLoaded = 0;
         this.totalAssets = Object.keys(this.assetPaths).length;
         
+        // Offscreen canvas for pre-rendered sprites
+        this.enemyOffscreen = null;
+        this.powerupOffscreen = null;
+        
         // Audio elements
         this.backgroundMusic = document.getElementById('backgroundMusic');
         this.musicToggleBtn = document.getElementById('musicToggleBtn');
@@ -151,6 +155,9 @@ class SpaceShooter {
             size: 55
         };
         
+        this.bulletPoolSize = 100;
+        this.bulletPool = [];
+        this.initBulletPool();
         this.bullets = [];
         this.enemies = [];
         this.stars = [];
@@ -228,18 +235,38 @@ class SpaceShooter {
             this.assets[key].onload = () => {
                 this.assetsLoaded++;
                 console.log(`Asset loaded: ${key} (${this.assetsLoaded}/${this.totalAssets})`);
+                // Pre-render enemy and powerup when loaded
+                if (key === 'enemy') this.createEnemyOffscreen();
+                if (key === 'powerup') this.createPowerupOffscreen();
                 if (this.assetsLoaded === this.totalAssets) {
                     console.log('All assets loaded!');
-                    // You could trigger an event or set a flag here if needed
-                    // For now, we assume the home screen waits for user input
                 }
             };
             this.assets[key].onerror = () => {
                 console.error(`Failed to load asset: ${key} at ${this.assetPaths[key]}`);
-                 // Optionally handle error, e.g., use fallback shapes
             };
             this.assets[key].src = this.assetPaths[key];
         }
+    }
+
+    createEnemyOffscreen() {
+        // Create an offscreen canvas for the enemy sprite
+        const size = 40; // Default enemy size
+        this.enemyOffscreen = document.createElement('canvas');
+        this.enemyOffscreen.width = size;
+        this.enemyOffscreen.height = size;
+        const ctx = this.enemyOffscreen.getContext('2d');
+        ctx.drawImage(this.assets.enemy, 0, 0, size, size);
+    }
+
+    createPowerupOffscreen() {
+        // Create an offscreen canvas for the powerup sprite
+        const size = 35; // Default powerup size
+        this.powerupOffscreen = document.createElement('canvas');
+        this.powerupOffscreen.width = size;
+        this.powerupOffscreen.height = size;
+        const ctx = this.powerupOffscreen.getContext('2d');
+        ctx.drawImage(this.assets.powerup, 0, 0, size, size);
     }
 
     // Ensure game starts only after assets are loaded
@@ -605,32 +632,12 @@ class SpaceShooter {
         if (this.isShooting && !this.isGameOver && !this.isTriviaActive) {
             if (this.hasMultiShot) {
                 // Shoot three bullets at different angles
-                this.bullets.push({
-                    x: this.player.x,
-                    y: this.player.y,
-                    speed: 5,
-                    angle: -0.2 // Left bullet
-                });
-                this.bullets.push({
-                    x: this.player.x,
-                    y: this.player.y,
-                    speed: 5,
-                    angle: 0 // Center bullet
-                });
-                this.bullets.push({
-                    x: this.player.x,
-                    y: this.player.y,
-                    speed: 5,
-                    angle: 0.2 // Right bullet
-                });
+                this.activateBullet(this.player.x, this.player.y, 5, -0.2); // Left bullet
+                this.activateBullet(this.player.x, this.player.y, 5, 0);    // Center bullet
+                this.activateBullet(this.player.x, this.player.y, 5, 0.2);  // Right bullet
             } else {
                 // Normal single bullet
-                this.bullets.push({
-                    x: this.player.x,
-                    y: this.player.y,
-                    speed: 5,
-                    angle: 0
-                });
+                this.activateBullet(this.player.x, this.player.y, 5, 0);
             }
 
             // Play laser sound using the pool
@@ -638,6 +645,25 @@ class SpaceShooter {
 
             this.shootTimeoutId = setTimeout(() => this.shoot(), 200);
         }
+    }
+
+    activateBullet(x, y, speed, angle) {
+        const bullet = this.getBulletFromPool();
+        bullet.x = x;
+        bullet.y = y;
+        bullet.speed = speed;
+        bullet.angle = angle;
+        bullet.active = true;
+    }
+
+    getBulletFromPool() {
+        for (let i = 0; i < this.bulletPool.length; i++) {
+            if (!this.bulletPool[i].active) {
+                return this.bulletPool[i];
+            }
+        }
+        // If all bullets are active, reuse the first one (fallback)
+        return this.bulletPool[0];
     }
 
     spawnEnemy() {
@@ -763,12 +789,21 @@ class SpaceShooter {
             }
         }
 
-        // Update bullets with angles
-        this.bullets = this.bullets.filter(bullet => {
-            bullet.x += Math.sin(bullet.angle) * bullet.speed * 3;
-            bullet.y -= bullet.speed;
-            return bullet.y > 0 && bullet.x > 0 && bullet.x < this.canvas.width;
-        });
+        // Update bullets with angles (object pool version)
+        this.bullets = [];
+        for (let i = 0; i < this.bulletPool.length; i++) {
+            const bullet = this.bulletPool[i];
+            if (bullet.active) {
+                bullet.x += Math.sin(bullet.angle) * bullet.speed * 3;
+                bullet.y -= bullet.speed;
+                // Deactivate if out of bounds
+                if (bullet.y <= 0 || bullet.x <= 0 || bullet.x >= this.canvas.width) {
+                    bullet.active = false;
+                } else {
+                    this.bullets.push(bullet);
+                }
+            }
+        }
 
         // Update enemies
         this.enemies = this.enemies.filter(enemy => {
@@ -800,7 +835,7 @@ class SpaceShooter {
             for (let i = 0; i < this.bullets.length; i++) {
                 const bullet = this.bullets[i];
                 if (this.checkCollision(bullet, enemy)) {
-                    this.bullets.splice(i, 1);
+                    bullet.active = false;
                     // Dashers give more points
                     const points = enemy.isDasher ? 20 : 10;
                     this.score += points;
@@ -825,7 +860,7 @@ class SpaceShooter {
             for (let i = 0; i < this.bullets.length; i++) {
                 const bullet = this.bullets[i];
                 if (this.checkCollision(bullet, star)) {
-                    this.bullets.splice(i, 1);
+                    bullet.active = false;
                     
                     this.isTriviaActive = true;
                     console.log('Pausing for trivia...');
@@ -939,7 +974,18 @@ class SpaceShooter {
         }
 
         // Draw enemies
-        if (this.assets.enemy) {
+        if (this.enemyOffscreen) {
+            this.enemies.forEach(enemy => {
+                this.ctx.drawImage(
+                    this.enemyOffscreen,
+                    0, 0, this.enemyOffscreen.width, this.enemyOffscreen.height,
+                    enemy.x - enemy.size / 2,
+                    enemy.y - enemy.size / 2,
+                    enemy.size,
+                    enemy.size
+                );
+            });
+        } else if (this.assets.enemy) {
             this.enemies.forEach(enemy => {
                 this.ctx.drawImage(
                     this.assets.enemy,
@@ -965,7 +1011,18 @@ class SpaceShooter {
         }
 
         // Draw power-ups
-        if (this.assets.powerup) {
+        if (this.powerupOffscreen) {
+            this.powerups.forEach(powerup => {
+                this.ctx.drawImage(
+                    this.powerupOffscreen,
+                    0, 0, this.powerupOffscreen.width, this.powerupOffscreen.height,
+                    powerup.x - powerup.size / 7,
+                    powerup.y - powerup.size / 7,
+                    powerup.size,
+                    powerup.size
+                );
+            });
+        } else if (this.assets.powerup) {
             this.powerups.forEach(powerup => {
                 this.ctx.drawImage(
                     this.assets.powerup,
@@ -1357,5 +1414,17 @@ class SpaceShooter {
 
         // Move to next sound in pool
         this.currentLaserSoundIndex = (this.currentLaserSoundIndex + 1) % this.laserSoundPool.length;
+    }
+
+    initBulletPool() {
+        for (let i = 0; i < this.bulletPoolSize; i++) {
+            this.bulletPool.push({
+                x: 0,
+                y: 0,
+                speed: 0,
+                angle: 0,
+                active: false
+            });
+        }
     }
 } 
