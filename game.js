@@ -150,6 +150,25 @@ class SpaceShooter {
         this.isMusicPlaying = false;
         this.soundEnabled = true;
         
+        // Web Audio API for mobile laser sound
+        this.audioContext = null;
+        this.laserAudioBuffer = null;
+        if (this.isMobile) {
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                fetch('assets/space-laser-38082 (mp3cut.net).mp3')
+                    .then(response => response.arrayBuffer())
+                    .then(arrayBuffer => this.audioContext.decodeAudioData(arrayBuffer))
+                    .then(audioBuffer => {
+                        this.laserAudioBuffer = audioBuffer;
+                        console.log('Laser sound loaded and decoded for Web Audio API (mobile)');
+                    })
+                    .catch(err => console.error('Web Audio API laser sound error:', err));
+            } catch (err) {
+                console.error('Web Audio API not supported or failed to initialize:', err);
+            }
+        }
+        
         // Initialize audio pool
         this.laserSoundPool = [];
         this.currentLaserSoundIndex = 0;
@@ -200,7 +219,7 @@ class SpaceShooter {
         
         // Add laser sound cooldown properties
         this.lastLaserSoundTime = 0;
-        this.laserSoundCooldown = this.isMobile ? 200 : 100; // 150ms for mobile, 100ms for desktop
+        this.laserSoundCooldown = this.isMobile ? 300 : 100; // 150ms for mobile, 100ms for desktop
         
         this.loadAssets();
         this.setupEventListeners();
@@ -1493,35 +1512,64 @@ class SpaceShooter {
     }
 
     initializeLaserSoundPool() {
-        // Create a smaller pool for mobile devices
-        const poolSize = this.isMobile ? 4 : 8;
+        // Create a larger pool for better sound overlap handling
+        const poolSize = this.isMobile ? 6 : 8;
         if (this.laserSound) {
             for (let i = 0; i < poolSize; i++) {
                 const sound = this.laserSound.cloneNode();
                 sound.volume = 0.3;
+                // Preload the audio
+                sound.load();
                 this.laserSoundPool.push(sound);
             }
+            console.log(`Initialized laser sound pool with ${poolSize} sounds`);
         }
     }
 
     playLaserSound() {
-        if (!this.soundEnabled || !this.laserSoundPool.length) return;
+        if (!this.soundEnabled) return;
 
         const now = performance.now();
-        // Check if enough time has passed since last sound
         if (now - this.lastLaserSoundTime < this.laserSoundCooldown) return;
+        this.lastLaserSoundTime = now;
 
-        // Get next sound from pool
-        const sound = this.laserSoundPool[this.currentLaserSoundIndex];
-        
-        // Reset and play
-        sound.currentTime = 0;
-        sound.play().catch(error => {
+        // Mobile: Use Web Audio API
+        if (this.isMobile && this.audioContext && this.laserAudioBuffer) {
+            try {
+                // Some browsers require context to be resumed after user gesture
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                const source = this.audioContext.createBufferSource();
+                source.buffer = this.laserAudioBuffer;
+                source.connect(this.audioContext.destination);
+                source.start(0);
+            } catch (err) {
+                console.warn('Web Audio API laser sound playback error:', err);
+            }
+            return;
+        }
+
+        // Desktop: Use audio pool
+        if (!this.laserSoundPool.length) return;
+        // Find the next available sound in the pool
+        let soundToPlay = null;
+        for (let i = 0; i < this.laserSoundPool.length; i++) {
+            const sound = this.laserSoundPool[this.currentLaserSoundIndex];
+            if (sound.paused || sound.ended) {
+                soundToPlay = sound;
+                break;
+            }
+            this.currentLaserSoundIndex = (this.currentLaserSoundIndex + 1) % this.laserSoundPool.length;
+        }
+        // If no sound is available, use the next one in sequence
+        if (!soundToPlay) {
+            soundToPlay = this.laserSoundPool[this.currentLaserSoundIndex];
+        }
+        soundToPlay.currentTime = 0;
+        soundToPlay.play().catch(error => {
             console.warn('Error playing laser sound:', error);
         });
-
-        // Update last play time and move to next sound in pool
-        this.lastLaserSoundTime = now;
         this.currentLaserSoundIndex = (this.currentLaserSoundIndex + 1) % this.laserSoundPool.length;
     }
 
