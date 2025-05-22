@@ -63,8 +63,10 @@ class TriviaSystem {
         this.selectedAnswer = null;
         this.currentQuestion = null;
         this.onAnswerCallback = null;
-        this.lastQuestionIndex = -1; // Track the index of the last question
-
+        
+        // Track answered questions
+        this.answeredQuestions = new Set();
+        
         // Initialize sound effects
         this.correctSound = document.getElementById('correctSound');
         this.wrongSound = document.getElementById('wrongSound');
@@ -90,17 +92,29 @@ class TriviaSystem {
         }
     }
 
+    getRandomUnansweredQuestion() {
+        // If all questions have been answered, reset the tracking
+        if (this.answeredQuestions.size >= triviaQuestions.length) {
+            this.answeredQuestions.clear();
+        }
+
+        // Get array of unanswered question indices
+        const unansweredIndices = Array.from(
+            { length: triviaQuestions.length },
+            (_, i) => i
+        ).filter(i => !this.answeredQuestions.has(i));
+
+        // Pick a random index from unanswered questions
+        const randomIndex = Math.floor(Math.random() * unansweredIndices.length);
+        return unansweredIndices[randomIndex];
+    }
+
     showQuestion(callback) {
         this.onAnswerCallback = callback;
         
-        // Get a random question index that's different from the last one
-        let randomIndex;
-        do {
-            randomIndex = Math.floor(Math.random() * triviaQuestions.length);
-        } while (randomIndex === this.lastQuestionIndex && triviaQuestions.length > 1);
-        
-        this.lastQuestionIndex = randomIndex;
-        this.currentQuestion = triviaQuestions[randomIndex];
+        // Get a random unanswered question
+        const questionIndex = this.getRandomUnansweredQuestion();
+        this.currentQuestion = triviaQuestions[questionIndex];
         
         this.questionElement.textContent = this.currentQuestion.question;
         this.optionsElement.innerHTML = '';
@@ -135,6 +149,10 @@ class TriviaSystem {
         
         // Play the appropriate sound effect
         this.playSound(isCorrect);
+
+        // Mark the current question as answered
+        const currentQuestionIndex = triviaQuestions.indexOf(this.currentQuestion);
+        this.answeredQuestions.add(currentQuestionIndex);
 
         this.optionsElement.innerHTML = '';
         this.submitButton.style.display = 'none';
