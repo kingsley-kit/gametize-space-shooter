@@ -134,6 +134,12 @@ class SpaceShooter {
         // Offscreen canvas for pre-rendered sprites
         this.enemyOffscreen = null;
         this.powerupOffscreen = null;
+        // Offscreen canvases for pre-rotated bullets
+        this.bulletOffscreen = {
+            '-0.2': null,
+            '0': null,
+            '0.2': null
+        };
         
         // Audio elements
         this.backgroundMusic = document.getElementById('backgroundMusic');
@@ -192,6 +198,10 @@ class SpaceShooter {
         
         this.activePopups = [];
         
+        // Add laser sound cooldown properties
+        this.lastLaserSoundTime = 0;
+        this.laserSoundCooldown = this.isMobile ? 200 : 100; // 150ms for mobile, 100ms for desktop
+        
         this.loadAssets();
         this.setupEventListeners();
         this.updateLeaderboardDisplay(false);
@@ -232,12 +242,22 @@ class SpaceShooter {
         console.log('Loading assets...');
         for (const key in this.assetPaths) {
             this.assets[key] = new Image();
-            this.assets[key].onload = () => {
+            this.assets[key].onload = async () => {
                 this.assetsLoaded++;
                 console.log(`Asset loaded: ${key} (${this.assetsLoaded}/${this.totalAssets})`);
+                
+                // Convert to ImageBitmap for better performance
+                try {
+                    this.assets[`${key}Bitmap`] = await createImageBitmap(this.assets[key]);
+                    console.log(`Created ImageBitmap for ${key}`);
+                } catch (error) {
+                    console.error(`Failed to create ImageBitmap for ${key}:`, error);
+                }
+
                 // Pre-render enemy and powerup when loaded
                 if (key === 'enemy') this.createEnemyOffscreen();
                 if (key === 'powerup') this.createPowerupOffscreen();
+                if (key === 'bullet') this.createBulletOffscreens();
                 if (this.assetsLoaded === this.totalAssets) {
                     console.log('All assets loaded!');
                 }
@@ -267,6 +287,29 @@ class SpaceShooter {
         this.powerupOffscreen.height = size;
         const ctx = this.powerupOffscreen.getContext('2d');
         ctx.drawImage(this.assets.powerup, 0, 0, size, size);
+    }
+
+    createBulletOffscreens() {
+        // Pre-render bullet at -0.2, 0, 0.2 radians
+        const bulletSize = 20;
+        const angles = [-0.2, 0, 0.2];
+        
+        // Use ImageBitmap if available, otherwise fallback to Image
+        const bulletSource = this.assets.bulletBitmap || this.assets.bullet;
+        if (!bulletSource) return;
+
+        angles.forEach(angle => {
+            const canvas = document.createElement('canvas');
+            canvas.width = bulletSize;
+            canvas.height = bulletSize;
+            const ctx = canvas.getContext('2d');
+            ctx.save();
+            ctx.translate(bulletSize / 2, bulletSize / 2);
+            ctx.rotate(angle);
+            ctx.drawImage(bulletSource, -bulletSize / 2, -bulletSize / 2, bulletSize, bulletSize);
+            ctx.restore();
+            this.bulletOffscreen[angle.toString()] = canvas;
+        });
     }
 
     // Ensure game starts only after assets are loaded
@@ -643,11 +686,21 @@ class SpaceShooter {
             // Play laser sound using the pool
             this.playLaserSound();
 
-            this.shootTimeoutId = setTimeout(() => this.shoot(), 200);
+            // Use different shoot rates for mobile and desktop
+            const shootDelay = this.isMobile ? 350 : 300;
+            this.shootTimeoutId = setTimeout(() => this.shoot(), shootDelay);
         }
     }
 
     activateBullet(x, y, speed, angle) {
+        // Limit active bullets on mobile
+        if (this.isMobile) {
+            let activeCount = 0;
+            for (let i = 0; i < this.bulletPool.length; i++) {
+                if (this.bulletPool[i].active) activeCount++;
+            }
+            if (activeCount >= 30) return; // Do not activate more than 40
+        }
         const bullet = this.getBulletFromPool();
         bullet.x = x;
         bullet.y = y;
@@ -712,13 +765,14 @@ class SpaceShooter {
         });
     }
 
-    update() {
+    update(deltaTime) {
         if (this.isGameOver || this.isTriviaActive) return;
 
         // Update starfield
         this.updateStarfield();
         
-        this.gameTime += 16;
+        // Update game time based on actual delta time
+        this.gameTime += deltaTime;
 
         // Calculate level based on game time (every 30 seconds)
         const newLevel = Math.floor(this.gameTime / 30000) + 1;
@@ -909,7 +963,6 @@ class SpaceShooter {
     }
 
     draw() {
-        if (this.isTriviaActive) return;
         if (this.assetsLoaded !== this.totalAssets) return;
         
         // Use a single clearRect call
@@ -922,48 +975,53 @@ class SpaceShooter {
         // Draw starfield before other elements
         this.drawStarfield();
 
-        // Batch similar drawing operations
+        // Batch draw bullets
         this.ctx.save();
-        
-        // Draw all bullets with batched transformations
-        if (this.assets.bullet) {
-            const bulletSize = 20;
-            this.bullets.forEach(bullet => {
-                // Calculate bullet position and rotation
-                const cos = Math.cos(bullet.angle);
-                const sin = Math.sin(bullet.angle);
-                
-                // Set transform matrix for this bullet
-                this.ctx.setTransform(
-                    cos, sin,
-                    -sin, cos,
-                    bullet.x, bullet.y
-                );
-                
-                // Draw the bullet
+        const bulletSize = 20;
+        this.bullets.forEach(bullet => {
+            let angleKey = bullet.angle.toFixed(1); // '-0.2', '0.0', '0.2'
+            if (!this.bulletOffscreen[angleKey]) angleKey = '0'; // fallback
+            const bulletImg = this.bulletOffscreen[angleKey];
+            if (bulletImg) {
                 this.ctx.drawImage(
-                    this.assets.bullet,
-                    -bulletSize / 2,
-                    -bulletSize / 2,
+                    bulletImg,
+                    bullet.x - bulletSize / 2,
+                    bullet.y - bulletSize / 2,
                     bulletSize,
                     bulletSize
                 );
-            });
-            // Reset transform once after all bullets
-            this.ctx.setTransform(1, 0, 0, 1, 0, 0);
-        } else {
-            this.ctx.fillStyle = '#ffff00';
-            this.bullets.forEach(bullet => {
-                this.ctx.beginPath();
-                this.ctx.arc(bullet.x, bullet.y, 10, 0, Math.PI * 2);
-                this.ctx.fill();
-            });
-        }
-        
+            } else if (this.assets.bulletBitmap) {
+                // Use ImageBitmap if available
+                this.ctx.drawImage(
+                    this.assets.bulletBitmap,
+                    bullet.x - bulletSize / 2,
+                    bullet.y - bulletSize / 2,
+                    bulletSize,
+                    bulletSize
+                );
+            } else if (this.assets.bullet) {
+                // fallback to unrotated Image
+                this.ctx.drawImage(
+                    this.assets.bullet,
+                    bullet.x - bulletSize / 2,
+                    bullet.y - bulletSize / 2,
+                    bulletSize,
+                    bulletSize
+                );
+            }
+        });
         this.ctx.restore();
 
-        // Draw player
-        if (this.assets.player) {
+        // Draw player using ImageBitmap if available
+        if (this.assets.playerBitmap) {
+            this.ctx.drawImage(
+                this.assets.playerBitmap,
+                this.player.x - this.player.size / 2,
+                this.player.y - this.player.size / 2,
+                this.player.size,
+                this.player.size
+            );
+        } else if (this.assets.player) {
             this.ctx.drawImage(
                 this.assets.player,
                 this.player.x - this.player.size / 2,
@@ -973,8 +1031,9 @@ class SpaceShooter {
             );
         }
 
-        // Draw enemies
+        // Batch draw enemies using ImageBitmap if available
         if (this.enemyOffscreen) {
+            this.ctx.save();
             this.enemies.forEach(enemy => {
                 this.ctx.drawImage(
                     this.enemyOffscreen,
@@ -985,7 +1044,21 @@ class SpaceShooter {
                     enemy.size
                 );
             });
+            this.ctx.restore();
+        } else if (this.assets.enemyBitmap) {
+            this.ctx.save();
+            this.enemies.forEach(enemy => {
+                this.ctx.drawImage(
+                    this.assets.enemyBitmap,
+                    enemy.x - enemy.size / 2,
+                    enemy.y - enemy.size / 2,
+                    enemy.size,
+                    enemy.size
+                );
+            });
+            this.ctx.restore();
         } else if (this.assets.enemy) {
+            this.ctx.save();
             this.enemies.forEach(enemy => {
                 this.ctx.drawImage(
                     this.assets.enemy,
@@ -995,10 +1068,24 @@ class SpaceShooter {
                     enemy.size
                 );
             });
+            this.ctx.restore();
         }
 
-        // Draw stars
-        if (this.assets.star) {
+        // Batch draw stars using ImageBitmap if available
+        if (this.assets.starBitmap) {
+            this.ctx.save();
+            this.stars.forEach(star => {
+                this.ctx.drawImage(
+                    this.assets.starBitmap,
+                    star.x - star.size / 2,
+                    star.y - star.size / 2,
+                    star.size,
+                    star.size
+                );
+            });
+            this.ctx.restore();
+        } else if (this.assets.star) {
+            this.ctx.save();
             this.stars.forEach(star => {
                 this.ctx.drawImage(
                     this.assets.star,
@@ -1008,10 +1095,12 @@ class SpaceShooter {
                     star.size
                 );
             });
+            this.ctx.restore();
         }
 
-        // Draw power-ups
+        // Batch draw power-ups using ImageBitmap if available
         if (this.powerupOffscreen) {
+            this.ctx.save();
             this.powerups.forEach(powerup => {
                 this.ctx.drawImage(
                     this.powerupOffscreen,
@@ -1022,7 +1111,21 @@ class SpaceShooter {
                     powerup.size
                 );
             });
+            this.ctx.restore();
+        } else if (this.assets.powerupBitmap) {
+            this.ctx.save();
+            this.powerups.forEach(powerup => {
+                this.ctx.drawImage(
+                    this.assets.powerupBitmap,
+                    powerup.x - powerup.size / 7,
+                    powerup.y - powerup.size / 7,
+                    powerup.size,
+                    powerup.size
+                );
+            });
+            this.ctx.restore();
         } else if (this.assets.powerup) {
+            this.ctx.save();
             this.powerups.forEach(powerup => {
                 this.ctx.drawImage(
                     this.assets.powerup,
@@ -1032,24 +1135,27 @@ class SpaceShooter {
                     powerup.size
                 );
             });
+            this.ctx.restore();
         }
 
         // Draw power-up status if active
         if (this.hasMultiShot) {
             const timeLeft = Math.ceil((this.multiShotEndTime - this.gameTime) / 1000);
+            this.ctx.save();
             this.ctx.fillStyle = '#ffff00';
             this.ctx.font = 'bold 20px Arial';
             this.ctx.fillText(`Multi-shot: ${timeLeft}s`, 10, 120);
+            this.ctx.restore();
         }
 
         // Draw canvas-based point popups
         const now = performance.now();
+        this.ctx.save();
         this.activePopups.forEach(popup => {
             const elapsed = now - popup.startTime;
             const progress = Math.min(elapsed / popup.duration, 1);
             const y = popup.y - progress * 60; // Move up
             const alpha = 1 - progress; // Fade out
-            this.ctx.save();
             this.ctx.globalAlpha = alpha;
             this.ctx.font = 'bold 32px Arial Black, Arial, sans-serif';
             this.ctx.textAlign = 'center';
@@ -1063,8 +1169,8 @@ class SpaceShooter {
             
             this.ctx.fillStyle = popup.color || '#FFD700';
             this.ctx.fillText(`+${popup.points}`, popup.x, y);
-            this.ctx.restore();
         });
+        this.ctx.restore();
     }
 
     updateScore() {
@@ -1182,14 +1288,12 @@ class SpaceShooter {
         this.lastFrameTime = now;
 
         // Update game state
-        this.update();
+        this.update(deltaTime);
         
-        // Only draw if enough time has passed (target 60 FPS)
-        if (deltaTime >= 16) { // 1000ms / 60fps ≈ 16.67ms
-            this.draw();
-        }
+        // Draw every frame for smooth animation
+        this.draw();
 
-        this.animationFrameId = requestAnimationFrame(() => this.gameLoop());
+        this.animationFrameId = requestAnimationFrame((timestamp) => this.gameLoop());
     }
 
     // Removing duplicate getLeaderboard method
@@ -1374,7 +1478,7 @@ class SpaceShooter {
 
     activateMultiShot() {
         this.hasMultiShot = true;
-        this.multiShotEndTime = this.gameTime + 5000; // 5 seconds duration
+        this.multiShotEndTime = this.gameTime + 6000; // 5 seconds duration
         
         // Play power-up sound
         if (this.soundEnabled && this.powerupSound) {
@@ -1389,8 +1493,8 @@ class SpaceShooter {
     }
 
     initializeLaserSoundPool() {
-        // Create a pool of 8 pre-cloned laser sounds
-        const poolSize = 8;
+        // Create a smaller pool for mobile devices
+        const poolSize = this.isMobile ? 4 : 8;
         if (this.laserSound) {
             for (let i = 0; i < poolSize; i++) {
                 const sound = this.laserSound.cloneNode();
@@ -1403,6 +1507,10 @@ class SpaceShooter {
     playLaserSound() {
         if (!this.soundEnabled || !this.laserSoundPool.length) return;
 
+        const now = performance.now();
+        // Check if enough time has passed since last sound
+        if (now - this.lastLaserSoundTime < this.laserSoundCooldown) return;
+
         // Get next sound from pool
         const sound = this.laserSoundPool[this.currentLaserSoundIndex];
         
@@ -1412,7 +1520,8 @@ class SpaceShooter {
             console.warn('Error playing laser sound:', error);
         });
 
-        // Move to next sound in pool
+        // Update last play time and move to next sound in pool
+        this.lastLaserSoundTime = now;
         this.currentLaserSoundIndex = (this.currentLaserSoundIndex + 1) % this.laserSoundPool.length;
     }
 
